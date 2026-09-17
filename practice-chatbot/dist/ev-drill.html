@@ -1,0 +1,686 @@
+<title>Adaptive EV Drill</title>
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Archivo:wght@600;700&family=IBM+Plex+Mono:wght@400;500;600&family=IBM+Plex+Sans:wght@400;500;600&display=swap">
+<style>
+:root{
+  --bg:#EDF0F4; --surface:#FFFFFF; --surface-2:#F5F7FA;
+  --ink:#141A21; --ink-2:#3D4753; --muted:#69737F;
+  --line:#D6DCE4; --line-strong:#B9C2CD;
+  --hv:#EA5B16; --hv-soft:#FDEDE3;
+  --ok:#17825A; --ok-soft:#E3F3EC;
+  --bad:#C2334A; --bad-soft:#FBE7EA;
+  --rung-off:#CFD6DF;
+  --shadow:0 1px 2px rgba(20,26,33,.06), 0 8px 24px -16px rgba(20,26,33,.35);
+  --r:10px;
+}
+@media (prefers-color-scheme:dark){
+  :root:not([data-theme="light"]){
+    --bg:#0D1116; --surface:#161C24; --surface-2:#1C232C;
+    --ink:#E6EBF1; --ink-2:#BCC6D2; --muted:#8A95A2;
+    --line:#28313B; --line-strong:#3A454F;
+    --hv:#FF7A3D; --hv-soft:#33190D;
+    --ok:#4FC395; --ok-soft:#10281F;
+    --bad:#F0788A; --bad-soft:#2C1319;
+    --rung-off:#2B343E;
+    --shadow:0 1px 2px rgba(0,0,0,.4), 0 8px 24px -16px rgba(0,0,0,.8);
+  }
+}
+:root[data-theme="dark"]{
+  --bg:#0D1116; --surface:#161C24; --surface-2:#1C232C;
+  --ink:#E6EBF1; --ink-2:#BCC6D2; --muted:#8A95A2;
+  --line:#28313B; --line-strong:#3A454F;
+  --hv:#FF7A3D; --hv-soft:#33190D;
+  --ok:#4FC395; --ok-soft:#10281F;
+  --bad:#F0788A; --bad-soft:#2C1319;
+  --rung-off:#2B343E;
+  --shadow:0 1px 2px rgba(0,0,0,.4), 0 8px 24px -16px rgba(0,0,0,.8);
+}
+*{box-sizing:border-box}
+body{
+  margin:0; background:var(--bg); color:var(--ink);
+  font-family:"IBM Plex Sans",-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;
+  font-size:16px; line-height:1.55; -webkit-font-smoothing:antialiased;
+}
+h1,h2,h3{font-family:Archivo,"IBM Plex Sans",sans-serif;font-weight:700;text-wrap:balance;margin:0;letter-spacing:-.01em}
+.mono{font-family:"IBM Plex Mono",ui-monospace,Menlo,monospace;font-variant-numeric:tabular-nums}
+.wrap{max-width:780px;margin:0 auto;padding-inline:20px;padding-block:0 56px}
+
+/* ---- instrument strip ---- */
+.strip{
+  position:sticky; top:env(safe-area-inset-top,0px); z-index:20;
+  background:color-mix(in srgb,var(--bg) 88%,transparent);
+  backdrop-filter:saturate(1.4) blur(10px);
+  border-bottom:1px solid var(--line);
+}
+.strip-in{max-width:780px;margin:0 auto;padding:10px 20px;display:flex;align-items:center;gap:16px;flex-wrap:wrap}
+.counter{font-family:"IBM Plex Mono",monospace;font-weight:600;font-size:13px;letter-spacing:.02em;color:var(--ink);white-space:nowrap}
+.counter b{font-size:19px;font-weight:600}
+.counter span{color:var(--muted)}
+.ladder{display:flex;align-items:flex-end;gap:3px;height:26px}
+.rung{width:14px;background:var(--rung-off);border-radius:2px;transition:background .35s ease,transform .35s ease}
+.rung:nth-child(1){height:34%} .rung:nth-child(2){height:50%} .rung:nth-child(3){height:66%}
+.rung:nth-child(4){height:83%} .rung:nth-child(5){height:100%}
+.rung.on{background:var(--hv)}
+.rung.cur{box-shadow:0 0 0 2px var(--bg),0 0 0 3px var(--hv)}
+.ladder-label{font-family:"IBM Plex Mono",monospace;font-size:11px;color:var(--muted);letter-spacing:.06em;text-transform:uppercase}
+.dots{display:flex;gap:5px;align-items:center}
+.dot{width:9px;height:9px;border-radius:50%;background:var(--rung-off);transition:background .25s}
+.dot.lit{background:var(--ok)}
+.strip-grp{display:flex;align-items:center;gap:9px}
+.spacer{flex:1 1 auto;min-width:0}
+.bar{height:3px;background:var(--rung-off);border-radius:2px;overflow:hidden;width:100%}
+.bar i{display:block;height:100%;background:var(--hv);width:0;transition:width .4s ease}
+
+/* ---- generic ---- */
+.card{background:var(--surface);border:1px solid var(--line);border-radius:var(--r);box-shadow:var(--shadow)}
+.chip{
+  display:inline-flex;align-items:center;gap:7px;font-family:"IBM Plex Mono",monospace;
+  font-size:11px;letter-spacing:.07em;text-transform:uppercase;color:var(--muted);
+  border:1px solid var(--line);border-radius:100px;padding:4px 11px;background:var(--surface-2);
+}
+.chip .tick{width:6px;height:6px;border-radius:50%;background:var(--hv);flex:none}
+button{font:inherit;color:inherit;cursor:pointer}
+.btn{
+  border:1px solid var(--hv);background:var(--hv);color:#fff;border-radius:8px;
+  padding:11px 22px;font-weight:600;font-size:15px;transition:filter .15s,transform .05s;
+}
+.btn:hover{filter:brightness(1.07)} .btn:active{transform:translateY(1px)}
+.btn.ghost{background:transparent;color:var(--ink);border-color:var(--line-strong)}
+.btn.ghost:hover{background:var(--surface-2);filter:none}
+.btn[disabled]{opacity:.45;cursor:not-allowed}
+:focus-visible{outline:2px solid var(--hv);outline-offset:2px}
+@media (prefers-reduced-motion:reduce){*{transition:none!important;animation:none!important}}
+
+/* ---- start screen ---- */
+.hero{padding-block:44px 8px}
+.eyebrow{font-family:"IBM Plex Mono",monospace;font-size:11.5px;letter-spacing:.14em;text-transform:uppercase;color:var(--hv);margin-bottom:12px}
+.hero h1{font-size:clamp(30px,6vw,44px);line-height:1.05}
+.hero p.lede{color:var(--ink-2);font-size:17px;max-width:60ch;margin:14px 0 0}
+.grid2{display:grid;grid-template-columns:repeat(auto-fit,minmax(240px,1fr));gap:14px;margin-top:26px}
+.rulebox{padding:18px 20px}
+.rulebox h3{font-size:13px;letter-spacing:.06em;text-transform:uppercase;color:var(--muted);font-family:"IBM Plex Mono",monospace;font-weight:600;margin-bottom:10px}
+.rulebox ol,.rulebox ul{margin:0;padding-left:18px;color:var(--ink-2);font-size:14.5px}
+.rulebox li{margin-bottom:6px}
+.rulebox li:last-child{margin-bottom:0}
+.levels{list-style:none;padding:0;margin:0}
+.levels li{display:flex;gap:10px;align-items:baseline;margin-bottom:7px;font-size:14.5px;color:var(--ink-2)}
+.levels .lv{font-family:"IBM Plex Mono",monospace;font-size:11px;font-weight:600;color:var(--hv);border:1px solid var(--hv);border-radius:4px;padding:0 5px;flex:none}
+.srcwrap{margin-top:14px;padding:18px 20px}
+.srclist{display:flex;flex-wrap:wrap;gap:6px;margin-top:10px}
+.srctag{font-family:"IBM Plex Mono",monospace;font-size:11.5px;color:var(--ink-2);background:var(--surface-2);border:1px solid var(--line);border-radius:5px;padding:3px 8px}
+.startrow{display:flex;gap:12px;align-items:center;flex-wrap:wrap;margin-top:26px}
+.note{font-size:13px;color:var(--muted);max-width:56ch}
+
+/* ---- question ---- */
+.qhead{display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin:26px 0 14px}
+.qstem{font-family:Archivo,sans-serif;font-weight:600;font-size:clamp(19px,3.4vw,24px);line-height:1.34;margin:0 0 20px;text-wrap:balance}
+.opts{display:flex;flex-direction:column;gap:9px}
+.opt{
+  display:flex;gap:13px;align-items:flex-start;width:100%;text-align:left;
+  background:var(--surface);border:1px solid var(--line);border-radius:var(--r);
+  padding:14px 16px;transition:border-color .12s,background .12s;font-size:15.5px;line-height:1.45;
+}
+.opt:hover:not([disabled]){border-color:var(--line-strong);background:var(--surface-2)}
+.opt .key{
+  font-family:"IBM Plex Mono",monospace;font-size:12px;font-weight:600;color:var(--muted);
+  border:1px solid var(--line-strong);border-radius:5px;width:22px;height:22px;
+  display:grid;place-items:center;flex:none;margin-top:1px;
+}
+.opt[disabled]{cursor:default}
+.opt.correct{border-color:var(--ok);background:var(--ok-soft)}
+.opt.correct .key{border-color:var(--ok);color:var(--ok)}
+.opt.chosen-wrong{border-color:var(--bad);background:var(--bad-soft)}
+.opt.chosen-wrong .key{border-color:var(--bad);color:var(--bad)}
+.opt.dim{opacity:.5}
+.fb{margin-top:16px;border-left:3px solid var(--line-strong);padding:12px 0 12px 15px}
+.fb.good{border-left-color:var(--ok)} .fb.bad{border-left-color:var(--bad)}
+.fb .verdict{font-family:Archivo,sans-serif;font-weight:700;font-size:14px;letter-spacing:.02em;text-transform:uppercase}
+.fb.good .verdict{color:var(--ok)} .fb.bad .verdict{color:var(--bad)}
+.fb p{margin:5px 0 0;color:var(--ink-2);font-size:15px}
+.fb .shift{margin-top:9px;font-family:"IBM Plex Mono",monospace;font-size:12.5px;color:var(--hv)}
+.nextrow{display:flex;justify-content:flex-end;margin-top:20px}
+.loading{padding:34px 0;color:var(--muted);display:flex;gap:11px;align-items:center;font-size:15px}
+.pulse{width:9px;height:9px;border-radius:50%;background:var(--hv);animation:p 1.1s ease-in-out infinite}
+@keyframes p{0%,100%{opacity:.25;transform:scale(.8)}50%{opacity:1;transform:scale(1.15)}}
+.err{border-left:3px solid var(--bad);padding:12px 15px;background:var(--bad-soft);border-radius:0 8px 8px 0;font-size:14.5px;color:var(--ink-2);margin-top:18px}
+
+/* ---- summary ---- */
+.sumhead{padding-block:34px 4px}
+.kpis{display:grid;grid-template-columns:repeat(auto-fit,minmax(130px,1fr));gap:12px;margin-top:22px}
+.kpi{padding:15px 17px}
+.kpi .k{font-family:"IBM Plex Mono",monospace;font-size:10.5px;letter-spacing:.09em;text-transform:uppercase;color:var(--muted)}
+.kpi .v{font-family:Archivo,sans-serif;font-weight:700;font-size:28px;line-height:1.2;margin-top:3px;font-variant-numeric:tabular-nums}
+.kpi .s{font-size:12.5px;color:var(--muted)}
+.sec{margin-top:34px}
+.sec h2{font-size:15px;font-family:"IBM Plex Mono",monospace;font-weight:600;letter-spacing:.07em;text-transform:uppercase;color:var(--muted);margin-bottom:14px}
+.trow{display:grid;grid-template-columns:1fr 92px 46px;gap:12px;align-items:center;padding:9px 0;border-bottom:1px solid var(--line)}
+.trow:last-child{border-bottom:none}
+.tname{font-size:15px}
+.tname i{display:block;font-style:normal;font-size:12px;color:var(--muted);font-family:"IBM Plex Mono",monospace}
+.meter{height:7px;background:var(--rung-off);border-radius:4px;overflow:hidden}
+.meter i{display:block;height:100%;border-radius:4px}
+.tscore{font-family:"IBM Plex Mono",monospace;font-size:13.5px;text-align:right;color:var(--ink-2)}
+.tag{font-family:"IBM Plex Mono",monospace;font-size:10.5px;letter-spacing:.06em;text-transform:uppercase;padding:2px 7px;border-radius:4px;margin-left:8px;vertical-align:middle}
+.tag.s{background:var(--ok-soft);color:var(--ok)} .tag.w{background:var(--bad-soft);color:var(--bad)}
+.lvtable{width:100%;border-collapse:collapse;font-size:14.5px}
+.lvtable th,.lvtable td{text-align:left;padding:8px 10px;border-bottom:1px solid var(--line)}
+.lvtable th{font-family:"IBM Plex Mono",monospace;font-size:10.5px;letter-spacing:.07em;text-transform:uppercase;color:var(--muted);font-weight:600}
+.lvtable td.n{font-family:"IBM Plex Mono",monospace;text-align:right;font-variant-numeric:tabular-nums}
+.tblwrap{overflow-x:auto}
+.plan{counter-reset:p;list-style:none;padding:0;margin:0}
+.plan li{position:relative;padding-left:34px;margin-bottom:12px;color:var(--ink-2);font-size:15px}
+.plan li::before{
+  counter-increment:p;content:counter(p);position:absolute;left:0;top:1px;
+  font-family:"IBM Plex Mono",monospace;font-size:11px;font-weight:600;color:var(--hv);
+  border:1px solid var(--hv);border-radius:5px;width:22px;height:22px;display:grid;place-items:center;
+}
+.plan b{color:var(--ink)}
+.hist{font-size:14px;color:var(--ink-2)}
+.hist .hrow{display:flex;justify-content:space-between;gap:12px;padding:7px 0;border-bottom:1px solid var(--line);font-family:"IBM Plex Mono",monospace;font-size:13px}
+.hist .hrow:last-child{border-bottom:none}
+.endrow{display:flex;gap:12px;flex-wrap:wrap;margin-top:32px}
+footer{margin-top:44px;padding-top:18px;border-top:1px solid var(--line);color:var(--muted);font-size:12.5px}
+@media (max-width:460px){
+  .trow{grid-template-columns:1fr 60px 44px}
+  .strip-in{gap:11px;padding:9px 16px}
+  .wrap{padding-inline:16px}
+}
+</style>
+
+<div class="strip" id="strip" hidden>
+  <div class="strip-in">
+    <div class="counter"><b id="qnum">01</b> <span>/ 21</span></div>
+    <div class="strip-grp">
+      <div class="ladder" id="ladder" title="Difficulty level"></div>
+      <div>
+        <div class="ladder-label" id="lvlabel">L2 Compare</div>
+        <div class="dots" id="dots" style="margin-top:3px"></div>
+      </div>
+    </div>
+    <div class="spacer"><div class="bar"><i id="prog"></i></div></div>
+    <button class="btn ghost" id="quit" style="padding:6px 13px;font-size:13px">End round</button>
+  </div>
+</div>
+
+<div class="wrap" id="app"></div>
+
+<script>
+const SECTIONS = [{"id": "s1", "n": 1, "title": "Physics and electrical fundamentals", "text": "## 1. Physics and electrical fundamentals\n\nAn EV is an energy-conversion chain: chemical energy in cells becomes electrical energy, then magnetic force in a motor, then torque at the wheels. Every design question reduces to how much energy, how fast (power), and how much is lost as heat.\n\n### 1.1 The five quantities you use every day\n\n| Quantity | Symbol and unit | Plain meaning | EV example |\n| --- | --- | --- | --- |\n| Voltage | V, volt | Electrical \"pressure\" pushing charge | A car pack runs at about 350 to 800 V |\n| Current | I, ampere (A) | Rate of charge flow | 200 A during hard acceleration |\n| Power | P, watt (W) or kilowatt (kW) | Rate of energy use: P = V x I | 400 V x 250 A = 100 kW |\n| Energy | E, watt-hour (Wh) or kilowatt-hour (kWh) | Power sustained over time | A 30 kWh pack delivers 30 kW for one hour |\n| Resistance | R, ohm | Opposition to current; causes heat | Heat loss = I squared x R |\n\n**Why high voltage matters.** For the same power, doubling voltage halves current. Heat loss scales with current squared, so it drops to a quarter. That is why premium cars moved from 400 V to 800 V: thinner cables, less heat, faster charging.\n\n### 1.2 Charge capacity and C-rate\n\n- **Ampere-hour (Ah):** how much charge a cell holds. A 100 Ah cell supplies 100 A for one hour, in theory.\n- **Energy of a cell or pack:** kWh = nominal voltage x Ah / 1000.\n- **C-rate:** current expressed relative to capacity. 1C on a 100 Ah cell is 100 A; 2C is 200 A; 0.5C is 50 A. Higher C-rate means faster charge or discharge and more heat and stress.\n\n### 1.3 Direct current and alternating current\n\n- **Direct current (DC):** flows one way. Batteries store and supply DC.\n- **Alternating current (AC):** reverses direction many times a second (50 hertz (Hz) in India). The grid supplies AC.\n- Most traction motors run on three-phase AC. So the vehicle must convert battery DC into variable-frequency AC. The inverter does this (Section 4).\n\n### 1.4 Road load: what the motor must overcome\n\nTotal force at the wheels = rolling resistance + aerodynamic drag + climbing force + acceleration force.\n\n| Force | Formula | What drives it |\n| --- | --- | --- |\n| Rolling resistance | Crr x m x g | Tyre design and vehicle mass. Crr is about 0.008 to 0.015 |\n| Aerodynamic drag | 0.5 x air density x Cd x A x v squared | Shape (Cd), frontal area (A), and speed squared |\n| Gradient (climbing) | m x g x sin(angle) | Mass and slope |\n| Acceleration | m x a (plus rotating inertia) | Mass and how hard you accelerate |\n\nm = mass (kg), g = 9.81 m/s squared, v = speed (m/s), Cd = drag coefficient, A = frontal area (square metres).\n\n**Three lessons from these equations.**\n\n1. Drag power rises with speed cubed. Highway range is always worse than city range.\n2. Mass hurts in city driving (stop-start) far more than on the highway.\n3. For two-wheelers and three-wheelers at low speed, rolling resistance and mass dominate; aerodynamics matters less.\n\n### 1.5 Torque, speed and power\n\n- **Torque (newton-metre, Nm):** twisting force. It gives launch and hill-climbing ability.\n- **Speed (revolutions per minute, rpm):** how fast the shaft turns.\n- **Power (kW) = torque (Nm) x speed (rpm) / 9549.**\n- A gearbox trades speed for torque. An 8:1 reduction multiplies torque about 8 times (minus losses) and divides speed by 8.\n\n### 1.6 Efficiency and the loss chain\n\nTypical battery-to-wheel efficiency is about 80 to 90 percent. Losses sit in the battery (internal resistance), inverter (switching), motor (copper, iron and friction losses), gearbox, and auxiliaries such as air-conditioning. Grid-to-wheel adds charger losses of roughly 5 to 15 percent.\n\n### 1.7 Regenerative braking\n\nWhen the driver lifts off or brakes, the motor runs as a generator. It turns kinetic energy back into electricity and charges the battery. In city traffic this can recover a meaningful share of braking energy. Limits: a full or very cold battery cannot accept much charge, so friction brakes must always be ready.\n\n### 1.8 Electromagnetism in one paragraph\n\nA current in a wire creates a magnetic field. A wire carrying current inside a magnetic field feels a force. Motors use the second effect to create torque; generators use the reverse (moving a conductor through a field creates voltage). Back-EMF (back electromotive force) is the voltage a spinning motor generates against its supply. It rises with speed, which is why a motor runs out of torque at high speed unless the controller weakens the field."}, {"id": "s2", "n": 2, "title": "Vehicle architectures", "text": "## 2. Vehicle architectures\n\nFour families exist, and they differ in one thing: where the energy comes from and how much the electric side does.\n\n| Type | Full form | Energy source | Plugs in? | Engine? | Where you see it in India |\n| --- | --- | --- | --- | --- | --- |\n| BEV | Battery electric vehicle | Battery only | Yes | No | Most e-2Ws, e-3Ws, e-buses, cars such as Nexon EV |\n| HEV | Hybrid electric vehicle | Fuel; small battery recharged by engine and braking | No | Yes | Strong hybrids such as Hyryder, City e:HEV |\n| PHEV | Plug-in hybrid electric vehicle | Larger battery plus engine | Yes | Yes | Rare in India so far |\n| FCEV | Fuel cell electric vehicle | Hydrogen converted to electricity on board | Refuels hydrogen | No | Pilots in buses and trucks |\n\n(e-2W = electric two-wheeler; e-3W = electric three-wheeler.)\n\n### 2.1 Hybrid sub-types\n\n- **Mild hybrid (MHEV, mild hybrid electric vehicle):** 12 V or 48 V starter-generator assists the engine. Cannot drive on electricity alone.\n- **Series hybrid:** engine only charges the battery; wheels are always driven by the motor.\n- **Parallel hybrid:** engine and motor can both drive the wheels.\n- **Series-parallel (power-split):** combines both through a planetary gear set. Toyota's system is the classic example.\n\n### 2.2 The BEV block diagram\n\n```mermaid\nflowchart LR\n  G[Grid / charger] --> OBC[Onboard charger<br/>AC to DC]\n  G -->|DC fast charge| P\n  OBC --> P[Battery pack<br/>+ BMS]\n  P --> INV[Inverter<br/>DC to 3-phase AC]\n  INV --> M[Traction motor]\n  M --> GB[Reduction gear<br/>+ differential]\n  GB --> W[Wheels]\n  P --> DCDC[DC-DC converter]\n  DCDC --> LV[12 V system<br/>lights, ECUs]\n  VCU[Vehicle control unit] -.-> INV\n  VCU -.-> P\n```\n\nSolid arrows carry power; dotted arrows carry control signals. BMS = battery management system. ECU = electronic control unit.\n\n### 2.3 Drive layouts\n\n- **Central motor:** one motor drives an axle through a differential. Most common.\n- **Dual motor (one per axle):** all-wheel drive; better traction and efficiency switching.\n- **Hub motor:** motor inside the wheel. Common on e-2Ws; adds unsprung mass, which hurts ride on rough roads.\n- **Mid-drive (2W):** motor near the swingarm pivot, drives the rear wheel via chain or belt. Better weight balance than hub.\n- **E-axle / 3-in-1:** motor, inverter and gearbox in one housing. Cuts cost, weight and cabling. Now the norm in cars.\n\n### 2.4 India vehicle categories you must know\n\nIndian rules follow the category codes from the Central Motor Vehicles Rules (CMVR).\n\n| Category | What it covers | Typical EV voltage |\n| --- | --- | --- |\n| L1, L2 | Two-wheelers (L1 low-speed, L2 higher speed) | 48 to 72 V (some up to about 100 V) |\n| L5 | Three-wheelers (e-rickshaw is a separate low-speed class) | 48 to 60 V for e-rickshaws; higher for L5 autos |\n| M1 | Passenger cars, up to 8 seats plus driver | 300 to 450 V, some 800 V |\n| M2, M3 | Buses | 400 to 700 V |\n| N1, N2, N3 | Goods carriers, light to heavy | 60 to 700 V depending on size |\n\nIndia's volume sits in L-category (two- and three-wheelers). Their low-voltage packs (under 60 V DC in many cases) change the safety rules, cost structure and failure modes compared with cars."}, {"id": "s3", "n": 3, "title": "Batteries: cells, chemistry, packs and the BMS", "text": "## 3. Batteries: cells, chemistry, packs and the BMS\n\nThe battery is 30 to 40 percent of an EV's cost and the source of most safety incidents. If you master one subsystem, make it this one.\n\n### 3.1 How a lithium-ion cell works\n\nA cell has four parts: a negative electrode (anode, usually graphite), a positive electrode (cathode, a lithium metal oxide or phosphate), a liquid electrolyte that lets lithium ions move, and a thin porous separator that keeps the electrodes from touching.\n\n- **Discharging:** lithium ions leave the anode, cross the electrolyte to the cathode. Electrons travel the other way through the external circuit, powering the motor.\n- **Charging:** the charger pushes ions back into the anode.\n- **SEI (solid electrolyte interphase):** a thin film that forms on the anode during the first charges. It protects the cell but slowly thickens over life, consuming lithium. This is a main cause of capacity fade.\n- **Lithium plating:** if you charge too fast or too cold, lithium deposits as metal on the anode instead of entering it. Plating permanently cuts capacity and can grow needle-like dendrites that pierce the separator and cause an internal short.\n\n### 3.2 Cathode chemistries compared\n\n| Chemistry | Full form | Cell energy density (Wh/kg, approx.) | Cycle life (approx.) | Thermal safety | Cost | Typical use |\n| --- | --- | --- | --- | --- | --- | --- |\n| LFP | Lithium iron phosphate | 140 to 180 | 3,000 to 6,000 | Very good | Low | Most Indian e-3Ws, buses, many cars |\n| NMC | Lithium nickel manganese cobalt oxide | 200 to 280 | 1,000 to 2,500 | Moderate | Medium to high | Cars, performance 2Ws |\n| NCA | Lithium nickel cobalt aluminium oxide | 240 to 280 | 1,000 to 2,000 | Moderate to low | High | Some Tesla models |\n| LMFP | Lithium manganese iron phosphate | 160 to 210 | 2,000 to 4,000 | Good | Low to medium | Emerging |\n| LTO (anode) | Lithium titanate oxide | 60 to 90 | 10,000+ | Excellent | Very high | Niche fast-charge buses |\n| Na-ion | Sodium-ion | 100 to 160 | 2,000 to 4,000 | Good | Potentially low | Early commercial, low-cost 2Ws and storage |\n\nLead-acid batteries still power many older e-rickshaws. They are cheap but heavy, last only a few hundred cycles, and are being displaced by LFP.\n\n**How to read the trade-off.** LFP gives safety, cost and life; NMC gives range per kilogram. For India's heat, low-cost segments and high daily usage (e-3W fleets), LFP usually wins.\n\n### 3.3 Cell formats\n\n| Format | Description | Strength | Weakness |\n| --- | --- | --- | --- |\n| Cylindrical (18650, 21700, 4680) | Metal can; number = diameter and length in mm | Cheap, standardised, good heat spread | Many cells and joints per pack |\n| Prismatic | Rigid rectangular metal case | Good space use, fewer cells | Swelling must be restrained; heat harder to pull out of the centre |\n| Pouch | Soft laminated foil bag | Light, flexible shape | Needs external support; swelling |\n\n### 3.4 Terms you will hear in every battery meeting\n\n- **Nominal voltage:** average cell voltage (LFP about 3.2 V; NMC about 3.6 to 3.7 V).\n- **Voltage window:** safe operating range (LFP about 2.5 to 3.65 V; NMC about 2.8 to 4.2 V). Going outside it damages the cell.\n- **SOC (state of charge):** fuel gauge, in percent.\n- **SOH (state of health):** current capacity versus new, in percent. End of life for vehicles is usually defined at 70 to 80 percent.\n- **DOD (depth of discharge):** how much of capacity is used in a cycle. Shallow cycles extend life.\n- **Usable versus gross capacity:** makers keep a buffer at top and bottom. A 40 kWh gross pack may offer 36 to 38 kWh usable.\n- **Internal resistance (DCIR, direct current internal resistance):** causes voltage sag under load and heat. It rises with age and cold.\n- **OCV (open circuit voltage):** voltage at rest. Used to estimate SOC. LFP's flat OCV curve makes SOC estimation hard.\n- **Calendar ageing:** degradation while parked. Worse at high temperature and high SOC.\n- **Cycle ageing:** degradation from use. Worse at high C-rate, extreme temperatures, and deep cycles.\n\n### 3.5 From cell to pack\n\n**Series and parallel.** Cells in series add voltage; cells in parallel add capacity. Notation \"96S2P\" means 96 series groups, each of 2 parallel cells.\n\n- 96S with NMC at 3.65 V nominal gives about 350 V.\n- 16S with LFP at 3.2 V gives about 51 V, a common 2W and 3W pack.\n\n**Pack hierarchy.**\n\n1. **Cell-to-module-to-pack:** cells grouped into modules, modules into a pack. Easier to service.\n2. **Cell-to-pack (CTP):** skips modules. Higher energy density, fewer parts; repair is harder.\n3. **Cell-to-body / cell-to-chassis (CTB / CTC):** the pack becomes part of the vehicle structure.\n\n**What goes into a pack besides cells.**\n\n- Busbars (copper or aluminium strips) and cell interconnects, joined by laser or ultrasonic welding.\n- Enclosure (aluminium or steel) with an IP (ingress protection) rating, typically IP67 for water and dust.\n- Thermal system: cooling plate, thermal interface material, heaters.\n- Fire barriers (mica sheets, aerogel pads) between cells or modules to slow propagation.\n- BMS boards and wire harness.\n- Junction box: main contactors (heavy-duty relays), pre-charge circuit, fuse, current sensor.\n- MSD (manual service disconnect): a plug a technician removes to split the pack voltage before servicing.\n- Vent: lets gas escape in a failure without the pack bursting, while keeping water out.\n\n**Pre-charge circuit.** The inverter has large capacitors. Connecting them straight to the battery causes a huge inrush current that welds contactors. So a resistor path charges them slowly first, then the main contactor closes.\n\n### 3.6 The battery management system (BMS)\n\nThe BMS is the pack's brain. It keeps every cell inside its safe window and tells the rest of the vehicle what the pack can do right now.\n\n| Function | What it does |\n| --- | --- |\n| Monitoring | Measures every series group's voltage, several temperatures, and pack current |\n| Protection | Opens contactors on over-voltage, under-voltage, over-current, over-temperature, or insulation fault |\n| State estimation | Calculates SOC, SOH and SOP (state of power, the maximum current allowed now) |\n| Cell balancing | Equalises cells so the weakest does not limit the pack |\n| Thermal control | Requests cooling or heating |\n| Communication | Talks to the vehicle control unit and charger over CAN (controller area network) |\n| Data logging | Stores faults and usage history for warranty and analysis |\n| Insulation monitoring | Checks the high-voltage system is isolated from the chassis |\n\n**Balancing types.**\n\n- **Passive:** burns extra charge from the fullest cells through resistors. Cheap, slow, wastes a little energy. Most common.\n- **Active:** moves charge from full cells to weak ones. More efficient, more expensive.\n\n**SOC estimation methods.**\n\n- **Coulomb counting:** integrate current over time. Simple, but sensor errors drift.\n- **OCV lookup:** accurate only when the pack has rested.\n- **Model-based (Kalman filter):** combines a cell model with measurements to correct drift. The industry standard for good BMS designs.\n\n**Architectures.** Centralised (one board, many wires), distributed (small board on each module plus a master), and wireless BMS (modules talk by radio, fewer harnesses).\n\n### 3.7 Thermal runaway: the failure you must understand\n\nThermal runaway is a self-heating chain reaction inside a cell. Once it starts, the cell heats itself faster than it can cool.\n\n**Sequence (approximate temperatures for NMC; LFP starts higher and releases less heat):**\n\n1. About 80 to 120 degrees Celsius: SEI layer breaks down and releases heat.\n2. About 130 degrees Celsius: separator melts; internal short circuit.\n3. About 150 to 250 degrees Celsius: cathode breaks down and releases oxygen; electrolyte burns.\n4. Venting of flammable, toxic gas (including hydrogen fluoride), possible fire or explosion.\n5. Heat spreads to neighbouring cells: this is called thermal propagation.\n\n**Triggers (abuse conditions).**\n\n- Electrical: overcharge, external short, over-discharge followed by recharge.\n- Thermal: external heat, poor cooling.\n- Mechanical: crush, puncture, vibration damage.\n- Internal: manufacturing defects such as metal particles or misaligned electrodes. These are the hardest to catch.\n\n**Defences, in layers.** Good cell quality control, BMS protection, fuses, cell spacing and fire barriers, venting design, strong enclosure, crash-safe mounting, and early warning to occupants so they can exit.\n\n### 3.8 Second life and recycling\n\n- **Second life:** packs below vehicle-grade SOH (about 70 to 80 percent) can serve stationary storage.\n- **Recycling:** hydrometallurgy (chemical leaching) and pyrometallurgy (smelting) recover lithium, nickel, cobalt, copper.\n- India's Battery Waste Management Rules, 2022 place extended producer responsibility (EPR) on battery producers, including collection and recycling targets."}, {"id": "s4", "n": 4, "title": "Motors and power electronics", "text": "## 4. Motors and power electronics\n\nThe motor turns electricity into torque; power electronics decide how much electricity reaches it and in what form. Together they are called the electric drive unit or powertrain.\n\n### 4.1 Motor anatomy\n\n- **Stator:** the fixed outer part with copper windings. Current here creates a rotating magnetic field.\n- **Rotor:** the spinning inner part that follows the field. It carries magnets, copper bars or shaped iron depending on motor type.\n- **Air gap:** the small space between them. Smaller gap, stronger coupling, tighter manufacturing tolerance.\n- **Laminations:** thin, insulated steel sheets stacked to form the core. They reduce eddy current losses.\n- **Position sensor:** a resolver (robust, used in cars) or Hall sensors / encoder (common in 2Ws) tells the controller where the rotor is.\n\n### 4.2 Motor types\n\n| Type | Full form | How it works | Strengths | Weaknesses | Where used |\n| --- | --- | --- | --- | --- | --- |\n| BLDC | Brushless direct current motor | Permanent magnets on rotor; trapezoidal current | Simple, cheap control | Torque ripple, noise | E-2Ws, e-rickshaws, fans |\n| PMSM | Permanent magnet synchronous motor | Magnets on rotor; sinusoidal current | Highest efficiency and power density | Rare-earth magnet cost and supply risk; magnets weaken if overheated | Most EV cars and premium 2Ws |\n| IPMSM | Interior PMSM | Magnets buried inside rotor | Adds reluctance torque; good at high speed | More complex design | Most modern cars |\n| IM | Induction motor (asynchronous) | Rotor currents induced by stator field; no magnets | No rare earths, robust, cheap | Lower efficiency at part load, rotor heat | Early Tesla, some front axles |\n| SynRM / SRM | Synchronous reluctance / switched reluctance | Rotor shaped iron, no magnets | Low cost, rugged | Noise and torque ripple (SRM) | Emerging, pumps |\n| EESM | Electrically excited synchronous motor | Rotor field from wound coil | No magnets, controllable field | Brushes or wireless power to rotor | Renault, BMW |\n\n**India angle.** Rare-earth magnets (neodymium, dysprosium) are largely imported and exposed to export controls. That is why magnet-free and low-rare-earth motors are an active area of work.\n\n### 4.3 Motor behaviour: the torque-speed curve\n\n- **Constant torque region:** from zero up to base speed, the motor delivers maximum torque. This gives EVs their instant pull.\n- **Constant power region (field weakening):** above base speed, back-EMF approaches supply voltage. The controller weakens the magnetic field, so torque falls as speed rises while power stays roughly flat.\n- **Peak versus continuous rating:** peak power is allowed for seconds; continuous power is what the motor can hold without overheating. Always ask a supplier for both. Marketing sheets often quote peak only.\n- **Efficiency map:** a contour chart showing efficiency at each torque-speed point. Engineers match the gear ratio so common driving sits in the high-efficiency island.\n\n### 4.4 Motor losses\n\n1. Copper loss: I squared R heating in windings. Dominant at high torque.\n2. Iron loss: hysteresis and eddy currents in the core. Grows with speed.\n3. Mechanical loss: bearing friction and windage.\n4. Magnet eddy loss in PMSMs at high frequency.\n\n**Insulation class** limits winding temperature (Class H, for example, allows 180 degrees Celsius). Hairpin windings, with rectangular copper bars, fill the slot better than round wire and are now common.\n\n### 4.5 The inverter (motor controller)\n\nThe inverter converts battery DC into three-phase AC of the frequency and amplitude the motor needs at every instant.\n\n- **Switches:** power semiconductors turned on and off thousands of times a second.\n  - MOSFET (metal oxide semiconductor field effect transistor): low-voltage 2W and 3W controllers.\n  - IGBT (insulated gate bipolar transistor): the long-time workhorse for 400 V cars.\n  - SiC (silicon carbide) MOSFET: lower losses, higher temperature, essential for most 800 V systems.\n  - GaN (gallium nitride): emerging, mostly in chargers.\n- **PWM (pulse width modulation):** the switches chop DC into pulses; varying pulse width shapes an average sine wave.\n- **Field oriented control (FOC):** the algorithm that controls motor torque precisely by splitting current into a torque-producing and a flux-producing part. It runs on a microcontroller every few tens of microseconds.\n- **DC link capacitor:** smooths the DC supply at the inverter input.\n- **Gate driver:** the circuit that switches each semiconductor safely and fast.\n- **Typical efficiency:** 95 to 99 percent. The losses (conduction and switching) are the main reason inverters need liquid cooling in cars.\n\n### 4.6 DC-DC converter\n\nSteps the high-voltage pack down to 12 V (or 48 V) for lights, infotainment, wipers and control units. It replaces the alternator in a petrol car. Many small 2Ws skip it and use the main pack or a small auxiliary battery.\n\n### 4.7 Onboard charger (OBC)\n\n- Converts grid AC to DC for the battery.\n- Two stages: power factor correction (PFC, keeps grid current clean and in phase) and an isolated DC-DC stage (galvanic isolation for safety).\n- Rated typically 3.3 kW or 7.2 kW single-phase, or 11 to 22 kW three-phase in cars. Its rating limits AC charging speed, no matter how big the wall charger is.\n- **Bidirectional OBC:** allows V2L (vehicle to load, powering appliances) and V2G (vehicle to grid).\n\n### 4.8 High-voltage distribution\n\n- **PDU (power distribution unit):** fuses and contactors that route pack power to inverter, OBC, DC-DC, air-conditioning compressor and heater.\n- **HV cables:** orange by convention, shielded against electromagnetic interference.\n- **HVIL (high voltage interlock loop):** a low-voltage signal loop running through every HV connector. If any connector is unplugged, the loop breaks and the system shuts down HV before anyone touches a live pin."}, {"id": "s5", "n": 5, "title": "Charging systems and standards", "text": "## 5. Charging systems and standards\n\nCharging speed is set by the weakest link: the charger's output, the vehicle's onboard charger (for AC) or battery acceptance (for DC), and the grid connection.\n\n### 5.1 AC versus DC charging\n\n| Mode | Where conversion happens | Typical power | Typical use |\n| --- | --- | --- | --- |\n| AC slow (home plug) | Onboard charger in vehicle | 1 to 3.3 kW | 2W, 3W, overnight car charging |\n| AC wallbox | Onboard charger in vehicle | 7.2 to 22 kW | Home and workplace car charging |\n| DC fast | Charger (off-board) sends DC directly to battery | 15 to 60 kW for cars, 3 to 12 kW for light EVs | Highway and city public charging |\n| DC ultra-fast | Off-board | 120 to 350 kW and above | Premium cars, 800 V vehicles, buses |\n| Battery swapping | No charging on vehicle; depleted pack exchanged | Minutes | E-3W and e-2W fleets |\n\n**The charging curve.** DC charging is fast up to roughly 80 percent SOC, then the BMS cuts current sharply to protect cells. That is why \"10 to 80 percent\" is the standard quoted time.\n\n### 5.2 Charging modes (IEC 61851)\n\nIEC 61851 is the International Electrotechnical Commission standard for conductive charging systems.\n\n- **Mode 1:** direct plug to socket, no protection. Not recommended.\n- **Mode 2:** household socket with in-cable control and protection box.\n- **Mode 3:** dedicated AC charging station with control pilot communication.\n- **Mode 4:** DC charging from an off-board charger.\n\n### 5.3 Connectors used in India\n\n| Connector | Vehicles | Notes |\n| --- | --- | --- |\n| Type 2 (AC) | Cars | Standard AC car socket |\n| CCS2 (combined charging system 2) | Cars, buses | Type 2 plus two DC pins. The de facto car fast-charging standard in India |\n| Bharat AC-001 / DC-001 | Early cars, some 3Ws | Low-voltage DC; now largely superseded for cars |\n| Type 6 (IS 17017 Part 2/Section 6) | Light EVs | DC-only, based on CHAdeMO ePTW; up to about 120 V DC and 3 to 12 kW |\n| Type 7 / LECCS (IS 17017 Part 2/Section 7) | 2W, 3W, micro cars | Light Electric Combined Charging System: combined AC and DC in one compact plug |\n\nFacts on Type 6 and Type 7 come from these pages: [EVreporter on light EV charging standards](https://evreporter.com/whats-next-for-light-ev-charging-standards/), [Bolt.Earth connector guide](https://bolt.earth/blog/ev-charging-connectors-in-india), and [Type 7 connector overview](https://en.wikipedia.org/wiki/Type_7_connector). These are secondary sources; check the Bureau of Indian Standards (BIS) text before quoting.\n\n### 5.4 How a charging session talks\n\n```mermaid\nsequenceDiagram\n  participant V as Vehicle (BMS)\n  participant C as Charger (EVSE)\n  V->>C: Plug in, control pilot detects vehicle\n  C->>V: Max current offered\n  V->>C: Battery limits, target voltage\n  C->>V: Insulation check, pre-charge\n  V->>C: Close contactors, request current\n  C-->>V: Deliver power, loop updates\n  V->>C: Stop request (full or fault)\n  C->>V: Ramp down, open contactors\n```\n\nEVSE = electric vehicle supply equipment. Communication uses the control pilot signal plus either CAN (common in light EV and CHAdeMO) or PLC (power line communication, used by CCS under ISO 15118).\n\n- **Control pilot (CP):** a signal line that tells the vehicle the charger is present and how much current it can supply.\n- **Proximity pilot (PP):** detects plug insertion and cable current rating; stops the car driving away while plugged in.\n- **ISO 15118:** International Organization for Standardization protocol for car-charger communication. Enables Plug and Charge (automatic authentication and billing) and future V2G.\n- **OCPP (Open Charge Point Protocol):** how chargers talk to a back-end server for billing, monitoring and remote control.\n\n### 5.5 Grid and site considerations\n\n- A DC fast charger site needs a dedicated transformer or high-tension connection; this is often the slowest item in rollout.\n- Chargers draw distorted current; harmonic limits and power factor matter for the utility.\n- **Smart charging:** shifting load to off-peak hours or tariffs (time-of-day tariffs are common in Indian states).\n- **V2G (vehicle to grid):** the vehicle sends power back. Technically proven; commercial models in India are still early.\n\n### 5.6 Battery swapping\n\n- Removes charging wait and lowers the vehicle's upfront price when batteries are leased (battery-as-a-service).\n- Needs standardised packs, strong connectors rated for many insertions, pack tracking, and state-of-health based pricing.\n- Works best for fleets with fixed routes (e-3W, delivery 2W).\n\n### 5.7 Wireless charging\n\nInductive coils under the car transfer power across an air gap. Efficiency is close to plug-in charging when aligned. Cost and standardisation keep it niche."}, {"id": "s6", "n": 6, "title": "Thermal management", "text": "## 6. Thermal management\n\nLithium-ion cells are happiest at roughly 20 to 35 degrees Celsius. Indian summers push ambient air past 45 degrees Celsius, and parked vehicles get hotter. Thermal design therefore decides both battery life and fire safety.\n\n### 6.1 Why temperature matters\n\n| Condition | Effect |\n| --- | --- |\n| Too hot (above about 45 degrees Celsius in the cell) | Faster SEI growth and capacity loss; higher runaway risk |\n| Too cold (below about 0 degrees Celsius) | Low power, lithium plating risk if fast-charged, reduced range |\n| Uneven temperature across the pack | Cells age at different rates; the pack is limited by its worst cell. Target a spread under about 5 degrees Celsius |\n\n### 6.2 Cooling methods\n\n| Method | How it works | Where used | Trade-off |\n| --- | --- | --- | --- |\n| Passive / natural air | Heat leaves through the enclosure | Low-cost 2Ws, e-rickshaws | Cheapest; weak in hot climates and during fast charging |\n| Forced air | Fans push air through the pack | Some 2Ws, early cars | Simple; uneven cooling; dust ingress |\n| Liquid cooling (indirect) | Water-glycol flows through cold plates under or between cells | Most cars, buses, premium 2Ws | Even temperatures, supports fast charging; adds cost, weight, leak risk |\n| Refrigerant direct cooling | Air-conditioning refrigerant flows through plates | Some cars | Compact; control is complex |\n| Immersion cooling | Cells sit in a non-conductive dielectric fluid | Emerging, performance | Excellent uniformity and fire suppression potential; cost, fluid weight |\n| Phase change material (PCM) | Wax-like material absorbs heat as it melts | 2W research and some products | No power needed; limited capacity, then saturates |\n\n### 6.3 The whole-vehicle thermal loop\n\nIn a car, one thermal system serves the battery, the motor and inverter, and the cabin.\n\n- **Chiller:** uses the air-conditioning refrigerant to cool the battery coolant.\n- **Heat pump:** moves heat rather than making it; two to three times more efficient than a resistive heater for cabin heating. Less critical in most of India, more useful in cold regions.\n- **PTC heater (positive temperature coefficient):** self-limiting electric heater for cabin or battery.\n- **Waste heat recovery:** motor and inverter heat can warm the battery in cold weather.\n\n### 6.4 Design practice\n\n1. Build a thermal model early (lumped model first, then computational fluid dynamics (CFD) for the pack).\n2. Place temperature sensors where cells run hottest, typically the pack centre and near busbars. India's AIS-156 amendment requires at least four temperature sensors in the BMS of L-category packs, per [EVreporter's summary of AIS-156](https://evreporter.com/ais-156-standard-additional-safety-requirements-practitioners-perspective/).\n3. Test at the worst case: highest ambient temperature, fast charging, full load hill climb, and a hot-soaked parked vehicle.\n4. Use thermal interface material to fill gaps between cells and cold plates; air gaps are insulators.\n5. Pre-condition the battery (warm or cool it) before DC fast charging."}, {"id": "s7", "n": 7, "title": "Vehicle control, software and networks", "text": "## 7. Vehicle control, software and networks\n\nA modern EV has dozens of electronic control units (ECUs) running millions of lines of code. The vehicle control unit coordinates them: it turns pedal position into a torque request and decides whether the battery, motor and brakes can deliver it.\n\n### 7.1 The main controllers\n\n| Controller | Full form | Job |\n| --- | --- | --- |\n| VCU | Vehicle control unit | Master brain: torque request, drive modes, regen blending, power limits, start-up and shutdown sequence |\n| BMS | Battery management system | Pack safety and state estimation (Section 3.6) |\n| MCU | Motor control unit (inverter controller) | Executes torque command using field oriented control |\n| OBC controller | Onboard charger controller | Manages AC charging |\n| TMS | Thermal management system controller | Pumps, valves, fans, compressor |\n| ABS / ESC | Anti-lock braking system / electronic stability control | Wheel slip and stability |\n| TCU | Telematics control unit | 4G/5G link for remote diagnostics, tracking, over-the-air updates |\n| Cluster / IVI | Instrument cluster / in-vehicle infotainment | Driver display and interface |\n\n### 7.2 How a torque request flows\n\n```mermaid\nflowchart LR\n  A[Accelerator pedal] --> VCU\n  VCU -->|Can battery supply?| BMS\n  BMS -->|Power limit| VCU\n  VCU -->|Torque command| MCU\n  MCU --> Motor\n  VCU -->|Regen share| ABS[Brake controller]\n```\n\nThe VCU always picks the lowest of: driver request, battery power limit, motor thermal limit, and traction limit.\n\n### 7.3 Communication networks\n\n- **CAN (controller area network):** the workhorse bus since the 1990s. Robust, cheap, up to 1 megabit per second (Mbps). CAN FD (flexible data rate) raises this to about 5 Mbps or more.\n- **LIN (local interconnect network):** low-cost, slow bus for windows, seats, small sensors.\n- **Automotive Ethernet:** 100 Mbps to multi-gigabit for cameras, displays and central computers.\n- **DBC file:** the dictionary that defines what each CAN message and signal means. You will read these constantly while debugging.\n- **UDS (unified diagnostic services, ISO 14229):** protocol for reading fault codes (DTCs, diagnostic trouble codes) and flashing software.\n\n### 7.4 Software architecture\n\n- **AUTOSAR (automotive open system architecture):** standard layered software framework used by most car makers and tier-1 suppliers. Classic AUTOSAR for real-time ECUs; Adaptive AUTOSAR for high-performance computers.\n- **Model-based design:** engineers build control logic in MATLAB/Simulink, simulate it, then auto-generate code.\n- **MIL, SIL, HIL testing:** model-in-the-loop, software-in-the-loop, hardware-in-the-loop. HIL connects the real ECU to a real-time simulator that pretends to be the vehicle, so you can test faults safely.\n- **Software-defined vehicle:** functions move from many small ECUs to a few central computers, updated over the air (OTA).\n- **Zonal architecture:** ECUs grouped by physical zone of the car rather than by function, cutting wiring length and weight.\n\n### 7.5 Cybersecurity and updates\n\nConnected vehicles can be attacked remotely. UNECE R155 (United Nations Economic Commission for Europe Regulation 155) and ISO/SAE 21434 set cybersecurity management requirements; UNECE R156 covers software update management. Export-focused Indian makers already design to these.\n\n### 7.6 Driver-facing EV functions you should be able to explain\n\n- **Range estimation (distance to empty):** blends SOC, recent consumption, temperature and sometimes route data. Poor estimates are a top customer complaint.\n- **Drive modes:** change torque maps, speed limits and regen levels.\n- **One-pedal driving:** strong regen slows the vehicle when the accelerator is released.\n- **Limp-home mode:** reduced power when a fault is detected, so the driver can reach safety.\n- **AVAS (acoustic vehicle alerting system):** artificial sound at low speed so pedestrians hear the vehicle."}, {"id": "s8", "n": 8, "title": "Mechanical systems", "text": "## 8. Mechanical systems\n\nAn EV removes the engine, clutch and multi-speed gearbox, but adds a heavy battery. Most mechanical engineering work shifts to packaging that battery safely, carrying its weight, and making a quiet vehicle feel refined.\n\n### 8.1 Transmission\n\n- **Single-speed reduction gear:** most EVs use one fixed ratio, typically about 8:1 to 12:1 for cars, because motors deliver torque across a wide speed range.\n- **Two-speed gearboxes:** used in some performance cars and heavy trucks for better launch and top speed.\n- **Differential:** lets the left and right wheels turn at different speeds in corners.\n- **2W drives:** hub motor (no transmission), or mid-drive with belt or chain reduction.\n\n### 8.2 Chassis and body\n\n- **Skateboard platform:** flat battery in the floor between the axles, motors at the axles. Low centre of gravity, good handling, flexible top-hat bodies.\n- **Converted platforms (ICE-to-EV):** a petrol car body adapted to take a battery. Cheaper to launch, but compromises in packaging and battery size. Many early Indian EVs took this route. ICE = internal combustion engine.\n- **Crash structure:** the pack must be protected from side-pole and underbody impacts, often with extruded aluminium side sills and a steel or aluminium skid plate.\n- **Weight:** EVs are often 10 to 30 percent heavier than equivalent petrol cars. That needs stronger suspension, brakes and tyres.\n\n### 8.3 Braking\n\n- **Brake blending:** the controller first uses regen, then adds friction brakes. The pedal must feel identical whatever the split.\n- **Brake-by-wire / electric brake booster:** there is no engine vacuum, so an electric pump or electromechanical booster provides assist.\n- **Corrosion:** friction brakes are used less and can rust; software sometimes exercises them.\n\n### 8.4 Tyres, suspension and steering\n\n- Low rolling resistance tyres extend range but can reduce grip.\n- Instant torque wears tyres faster.\n- **EPS (electric power steering):** standard on EVs since there is no engine-driven pump.\n\n### 8.5 NVH (noise, vibration and harshness)\n\nWithout engine noise to mask them, customers hear motor whine, gear mesh noise, inverter switching tones, road noise and wind noise. NVH engineers tune gear tooth geometry, motor design and insulation to manage these.\n\n### 8.6 Auxiliary systems that change in an EV\n\n- Electric air-conditioning compressor, driven from high voltage.\n- Electric vacuum or hydraulic pumps.\n- 12 V battery still exists in most cars; it powers controllers and wakes the high-voltage system. A dead 12 V battery can immobilise an EV with a full traction pack.\n\n### 8.7 Ingress protection and durability\n\n- **IP rating (IEC 60529):** first digit = dust protection, second = water. IP67 means dust-tight and survives temporary immersion. Indian monsoon flooding makes this non-negotiable for packs, motors and connectors.\n- **Vibration:** Indian roads load components heavily; loosened busbar bolts and cracked welds are known field failures."}, {"id": "s9", "n": 9, "title": "How an EV is built", "text": "## 9. How an EV is built\n\nAn EV goes from a customer need to a type-approved vehicle through a staged process that typically takes 2 to 4 years for a car and 12 to 24 months for a 2W or 3W.\n\n### 9.1 The development cycle (V-model)\n\n```mermaid\nflowchart LR\n  R[Vehicle targets] --> S[System design]\n  S --> C[Component design]\n  C --> B[Build and code]\n  B --> CT[Component tests]\n  CT --> ST[System tests]\n  ST --> VT[Vehicle validation]\n```\n\nThe left side breaks requirements down; the right side tests each level against what was defined on the left. Every requirement must trace to a test. Auditors check this traceability.\n\n### 9.2 Stages and gates\n\n| Stage | What happens | Output |\n| --- | --- | --- |\n| Concept | Customer, segment, price and range targets; benchmarking | Vehicle technical specification |\n| Architecture | Choose voltage, cell chemistry, motor type, layout | System block diagrams, cost estimate |\n| Detailed design | CAD (computer-aided design), simulations, supplier selection | Drawings, bill of materials (BOM) |\n| Prototype (proto / mule) | Hand-built vehicles for early testing | Test data, design changes |\n| Validation builds | Near-production parts; durability and certification testing | DVP&R complete (design verification plan and report) |\n| Homologation | Type approval by a test agency | Certificate of compliance |\n| SOP (start of production) | Production line qualified | Saleable vehicles |\n\n**PPAP (production part approval process)** confirms a supplier can make parts consistently before production starts.\n\n### 9.3 Engineering tools you will meet\n\n- **DFMEA / PFMEA (design / process failure mode and effects analysis):** list every way a part or process can fail, score severity, occurrence and detection, and fix the highest risks first.\n- **Simulation:** finite element analysis (FEA) for structures and crash, CFD for cooling and aerodynamics, electrochemical models for cells, MATLAB/Simulink for controls, 1D system models for range.\n- **DFM / DFA (design for manufacturing / assembly):** design so parts are easy to build and hard to assemble wrongly.\n- **Poka-yoke:** mistake-proofing, such as connectors that fit only one way.\n\n### 9.4 Battery pack manufacturing\n\n1. **Incoming cell inspection:** voltage, internal resistance, dimensions, visual checks. Sort (grade) cells so matched ones go together.\n2. **Stacking and fixturing:** cells placed in holders or compressed stacks (prismatic cells need compression to control swelling).\n3. **Joining:** laser welding (most common for prismatic), ultrasonic or wire bonding (cylindrical), resistance welding (lower cost 2W packs). Weld quality is a top cause of field failures.\n4. **BMS and harness fitting.**\n5. **Enclosure assembly, thermal paste, sealing.**\n6. **End-of-line (EOL) testing:** insulation resistance, high-voltage withstand (hipot) test, leak test for IP rating, charge-discharge check, BMS calibration, CAN communication check.\n7. **Traceability:** each pack and ideally each cell carries a unique ID. India's amended AIS-156 made pack traceability a Phase-1 requirement from December 2022, per [EVreporter's AIS-156 summary](https://evreporter.com/ais-156-standard-additional-safety-requirements-practitioners-perspective/).\n\nCell manufacturing itself (electrode coating, calendering, winding or stacking, electrolyte filling, formation and ageing) is a separate, capital-heavy industry. India is still building this capacity; most cells are imported today.\n\n### 9.5 Motor manufacturing\n\nLamination stamping and stacking, winding (hairpin insertion and welding for car motors), rotor magnet insertion, balancing, varnish impregnation, and end-of-line tests: back-EMF, insulation, noise.\n\n### 9.6 Vehicle assembly differences\n\n- **Marriage station:** the battery pack is bolted up into the body from below.\n- **High-voltage safety zones:** only trained, authorised staff work on live systems; insulated tools and PPE (personal protective equipment) are mandatory.\n- **EOL vehicle checks:** insulation monitoring, charging handshake, software flashing, dyno run, water leak test.\n\n### 9.7 Validation tests\n\n| Area | Example tests |\n| --- | --- |\n| Performance | Range on a drive cycle (MIDC, Modified Indian Driving Cycle), acceleration, gradeability, top speed |\n| Battery | Cycle life, calendar life, fast-charge ageing, SOC accuracy |\n| Durability | Rough road, vibration shaker, thermal cycling, salt spray, water wading |\n| Environmental | Hot and cold chambers, high altitude, humidity |\n| Electrical safety | Insulation resistance, protection against electric shock, water exposure, HVIL |\n| EMC | Electromagnetic compatibility: the vehicle neither disturbs nor is disturbed by radio signals |\n| Abuse (battery) | Overcharge, short circuit, crush, drop, fire exposure, thermal propagation |\n| Crash | Frontal, side, pole, rear; post-crash electrical safety |\n| Functional safety | Fault injection on HIL and vehicle |"}, {"id": "s10", "n": 10, "title": "Safety engineering and regulations", "text": "## 10. Safety engineering and regulations\n\nIn India, an EV cannot be registered for road use without type approval under the Central Motor Vehicles Rules (CMVR). For EV-specific safety, that means AIS-156 for L-category vehicles and AIS-038 (Rev. 2) for M and N categories. AIS = Automotive Industry Standard, issued through the Ministry of Road Transport and Highways (MoRTH).\n\n### 10.1 Electrical safety principles\n\n- **Voltage classes.** Up to 60 V DC counts as low voltage in most EV standards. Above 60 V DC (up to 1,500 V DC) is high voltage and triggers extra protection rules. This is why many 2W packs are designed just under 60 V.\n- **Protection against direct contact:** live parts sit behind barriers or enclosures (finger-proof, rated IPXXB or IPXXD).\n- **Protection against indirect contact:** all exposed metal parts are bonded to the chassis (equipotential bonding).\n- **Isolation:** the HV system floats; it is not connected to the chassis. An insulation monitor checks resistance, and a typical minimum is 100 ohms per volt for DC circuits and 500 ohms per volt for AC.\n- **Discharge:** after shutdown, capacitors must drop to safe voltage quickly (a common requirement is below 60 V within a few seconds).\n- **Orange cables and warning labels** on every HV part.\n\n### 10.2 Functional safety: ISO 26262\n\nISO 26262 covers risks from failures of electrical and electronic systems.\n\n1. **HARA (hazard analysis and risk assessment):** list hazards such as unintended acceleration or loss of braking.\n2. Rate each by severity, exposure and controllability.\n3. Assign an **ASIL (automotive safety integrity level)** from A (lowest) to D (highest). Unintended acceleration or BMS failure to prevent overcharge usually lands at high ASIL.\n4. Define safety goals and a safe state (for example, open contactors).\n5. Design hardware and software to meet the ASIL, with redundancy and diagnostics.\n6. Verify and document everything.\n\n**SOTIF (safety of the intended functionality, ISO 21448)** covers hazards without a failure, such as a sensor misreading a situation. More relevant for driver assistance.\n\n### 10.3 India: key regulations and standards\n\n| Instrument | Scope | Notes |\n| --- | --- | --- |\n| CMVR Rule 124 | Type approval and conformity of production | Draft notification GSR 659(E) of 25 August 2022 proposed conformity of production for traction batteries |\n| AIS-156 (with amendments) | L-category EV safety: electric powertrain and battery | Amended after the 2022 scooter fires |\n| AIS-038 (Rev. 2, with amendments) | M and N category EV safety, based on UN GTR 20 | UN GTR 20 = United Nations Global Technical Regulation No. 20 on EV safety |\n| IS 16893 (Parts 2 and 3) | Lithium-ion cell testing for traction use | Cell testing from an NABL-accredited lab (National Accreditation Board for Testing and Calibration Laboratories) |\n| IS 17855:2022 | Performance testing of lithium-ion traction packs | Harmonised with ISO 12405-4:2018 |\n| IS 17017 series | Charging systems and connectors | Includes Type 6 and Type 7 (LECCS) for light EVs |\n| AIS-004 | Electromagnetic compatibility | EMC testing of BMS is part of the AIS-156 Phase-2 requirements |\n| Battery Waste Management Rules, 2022 | Producer responsibility for collection and recycling | Administered under environment ministry rules |\n\n**The 2022 battery safety amendments** were issued by MoRTH on 29 August 2022 and rolled out in two phases, from 1 December 2022 and 31 March 2023.\n\n- **Phase 1:** pack traceability, an additional safety fuse, protection against regenerative braking overcharge, cell-to-cell spacing, and a microprocessor-based BMS with full protections.\n- **Phase 2:** earth leakage detection in the charger, EMC testing of the BMS as per AIS-004, IS 16893 cell testing from an NABL lab, a thermal propagation test, audio-visual warning of a thermal event, at least four temperature sensors in the BMS, and active parallel circuit protection.\n\nThe amendment details come from [EVreporter's AIS-156 practitioner summary](https://evreporter.com/ais-156-standard-additional-safety-requirements-practitioners-perspective/), [The Tribune on the phased rollout](https://www.tribuneindia.com/news/nation/govt-defers-rollout-of-ev-battery-safety-norms-435956), and [Mercom India on IS 17855](https://www.mercomindia.com/electric-vehicle-battery-standards-enhanced-safety). These are secondary sources. Before you rely on them, read the current AIS texts on the ARAI (Automotive Research Association of India) website and the MoRTH gazette notifications; revisions continue (AIS-038 had a further revision in 2024).\n\n**Testing agencies** for type approval include ARAI (Pune), ICAT (International Centre for Automotive Technology, Manesar), and NATRiP (National Automotive Testing and R&D Infrastructure Project) centres.\n\n**BIS versus AIS.** A BIS product certificate and CMVR type approval under AIS are separate approvals under different laws. One does not replace the other.\n\n### 10.4 Global references worth knowing\n\n| Standard | Topic |\n| --- | --- |\n| UNECE R100 | EV electrical safety and battery safety (Europe and many other markets) |\n| UN GTR 20 | Global technical regulation on EV safety |\n| UN 38.3 | Lithium battery transport testing (required to ship cells and packs by air, sea or road) |\n| IEC 62660 | Lithium-ion cell performance and reliability tests |\n| ISO 6469 | EV electrical safety specifications |\n| ISO 12405 | Pack and system test procedures |\n| UL 2580 | Batteries for EVs (North America) |\n| GB 38031 | China battery safety, including a strict no-fire, no-explosion thermal propagation requirement |\n| SAE J2464 / J2929 | Abuse testing and battery safety (US) |\n| ISO 26262 / ISO 21448 / ISO/SAE 21434 | Functional safety, SOTIF, cybersecurity |\n\n### 10.5 Workplace high-voltage safety\n\n- Only trained and authorised people work on HV systems; follow the lock-out, tag-out (LOTO) procedure.\n- **Five steps before touching:** switch off, remove the service disconnect and secure it, verify zero voltage with a rated meter (test the meter first), wait for capacitor discharge, then cover nearby live parts.\n- Use insulated tools and class 0 insulated gloves (inspect before each use), plus face shield where arc flash is possible.\n- Never work alone on live HV.\n- **Damaged batteries** can re-ignite hours or days after an incident. Quarantine them outdoors, away from buildings, and monitor temperature.\n- **Firefighting:** lithium-ion fires need large volumes of water for cooling. Emergency responders use the maker's rescue sheet to locate cut points and the pack."}, {"id": "s11", "n": 11, "title": "Best practices and common failure modes", "text": "## 11. Best practices and common failure modes\n\nMost field problems in Indian EVs trace back to a few causes: heat, water, vibration, poor cell quality and weak BMS logic. Design against these first.\n\n### 11.1 Rules of thumb\n\n- **Energy use:** e-2W about 25 to 40 Wh/km; e-3W about 60 to 100 Wh/km; compact car about 110 to 160 Wh/km; city bus about 800 to 1,300 Wh/km. Use these to sanity-check any range claim.\n- **Real-world range** is usually 20 to 35 percent below the certified drive-cycle figure.\n- **Pack mass:** cells are roughly 60 to 75 percent of pack weight; the rest is structure, thermal system and electronics.\n- **Every 10 degrees Celsius** of extra sustained cell temperature roughly doubles the rate of many ageing reactions.\n- **Continuous current** should be sized with margin: design busbars and connectors for the peak current and its duration, not only the average.\n- **Keep daily SOC between about 20 and 80 percent** for NMC to extend life; LFP tolerates full charges better and benefits from a periodic full charge to recalibrate SOC.\n\n### 11.2 Common failure modes\n\n| Failure | Typical root cause | Prevention |\n| --- | --- | --- |\n| Pack fire | Internal cell defect, poor weld, overcharge, water ingress causing short | Cell supplier audits, weld inspection, BMS redundancy, IP67 sealing, propagation barriers |\n| Water ingress | Seal failure, breather design, connector damage in floods | Leak testing at end of line, sealed connectors, flood testing |\n| Loose busbars | Vibration, wrong bolt torque | Torque-controlled tools, thread locking, periodic torque audit |\n| Cell imbalance and early range loss | Poorly matched cells, weak balancing, heat gradients | Cell grading, better balancing, even cooling |\n| Controller (inverter) failure | Overheating, voltage spikes, poor gate driver design | Thermal margin, snubbers, derating |\n| Motor demagnetisation | Magnet overheating | Temperature monitoring, magnet grade selection |\n| Hall sensor / encoder failure | Water, vibration | Potting, sealed sensors, sensorless fallback control |\n| Connector burning | High contact resistance from wear or poor crimp | Crimp quality checks, contact rating margin |\n| Charger fault damaging battery | Cheap non-compliant chargers | Charger-BMS handshake, earth leakage protection |\n| 12 V battery drain | Controllers not sleeping | Sleep current budget, software checks |\n| Wrong SOC reading | Sensor drift, flat LFP curve | Model-based estimation, periodic full-charge calibration |\n\n### 11.3 Design practices\n\n1. **Design for the worst Indian condition:** 50 degrees Celsius ambient, flooded roads, overloaded vehicles, poor grid supply.\n2. **Derate components:** run semiconductors, cells and connectors below their maximum ratings.\n3. **Defence in depth:** never rely on one protection. Combine BMS software, hardware cut-off, fuse and mechanical design.\n4. **Fail safe:** on any serious fault, reach a defined safe state (open contactors, limp-home, warn driver).\n5. **Log everything:** field data from telematics is the fastest way to find root causes.\n6. **Close the loop:** feed warranty data back into DFMEA.\n7. **Supplier discipline:** audit cell makers on site; demand lot-level test data.\n8. **Serviceability:** can a technician safely isolate the pack in under 10 minutes? Can a module be replaced without scrapping the pack?\n9. **Document requirements** so each one traces to a test.\n\n### 11.4 How to question a supplier datasheet\n\n- Is the power rating peak or continuous? For how many seconds, at what temperature?\n- Is cycle life quoted at 25 degrees Celsius and 1C, or under realistic conditions?\n- What end-of-life definition is used (70 or 80 percent)?\n- Which standards has it been certified to, by which lab, and when?\n- What is the field failure rate in parts per million?"}, {"id": "s12", "n": 12, "title": "Worked calculations", "text": "## 12. Worked calculations\n\nWork these with a pen before checking the answers. Each one mirrors a question you will face in a design review. All inputs are illustrative assumptions.\n\n### 12.1 Size an e-scooter battery\n\n**Target:** 100 km real-world range at 30 Wh/km, LFP cells, 16S (about 51.2 V nominal), usable window 90 percent.\n\n1. Usable energy = 100 km x 30 Wh/km = 3,000 Wh.\n2. Gross energy = 3,000 / 0.90 = about 3,333 Wh.\n3. Capacity needed = 3,333 Wh / 51.2 V = about 65 Ah.\n4. With 15 Ah LFP cells: 65 / 15 = 4.3, so round up to 5 in parallel. Configuration 16S5P = 80 cells, 75 Ah, 51.2 x 75 = 3.84 kWh.\n\n**Check the C-rate:** a 3 kW continuous motor draws 3,000 / 51.2 = about 59 A, which is 59 / 75 = about 0.8C. Comfortable for LFP.\n\n### 12.2 Estimate car energy use at highway speed\n\n**Inputs:** mass 1,500 kg, Crr 0.010, Cd 0.33, frontal area 2.3 square metres, air density 1.2 kg per cubic metre, speed 90 km/h (25 m/s), drivetrain efficiency 88 percent, air-conditioning 1.5 kW.\n\n1. Rolling force = 0.010 x 1,500 x 9.81 = 147 N.\n2. Drag force = 0.5 x 1.2 x 0.33 x 2.3 x 25 squared = 285 N.\n3. Total = 432 N. Wheel power = 432 x 25 = 10.8 kW.\n4. Battery power for driving = 10.8 / 0.88 = 12.3 kW. Add air-conditioning: 13.8 kW.\n5. Energy per km = 13.8 kW / 90 km/h = about 153 Wh/km.\n6. Range with 30 kWh usable = 30,000 / 153 = about 196 km.\n\nNotice drag is already twice rolling resistance at 90 km/h. At 120 km/h, drag would be about 1.8 times higher again.\n\n### 12.3 Motor torque for a hill\n\n**Inputs:** same car, 10 percent gradient (sin of angle about 0.0995), wheel radius 0.30 m, gear ratio 9:1, gear efficiency 95 percent, steady low speed.\n\n1. Climbing force = 1,500 x 9.81 x 0.0995 = 1,464 N.\n2. Add rolling force 147 N: total 1,611 N.\n3. Wheel torque = 1,611 x 0.30 = 483 Nm.\n4. Motor torque = 483 / (9 x 0.95) = about 57 Nm.\n\nA typical compact EV motor offers 150 to 250 Nm, so there is ample margin for accelerating uphill.\n\n### 12.4 Motor power from torque and speed\n\n200 Nm at 6,000 rpm: power = 200 x 6,000 / 9,549 = about 126 kW.\n\n### 12.5 Why 800 V cuts losses\n\nDelivering 100 kW through a cable path with 10 milliohms of resistance:\n\n| System voltage | Current | Heat loss (I squared x R) |\n| --- | --- | --- |\n| 400 V | 250 A | 625 W |\n| 800 V | 125 A | 156 W |\n\nHalving current cuts loss to a quarter.\n\n### 12.6 AC charging time\n\n**Inputs:** 30 kWh usable pack, charge from 20 to 100 percent, 7.2 kW onboard charger, 90 percent charging efficiency.\n\n1. Energy needed = 0.8 x 30 = 24 kWh.\n2. Power reaching battery = 7.2 x 0.9 = 6.5 kW.\n3. Time = 24 / 6.5 = about 3.7 hours. Add some time for the slower top-up phase: plan about 4 hours.\n\n### 12.7 Running cost\n\nAt 150 Wh/km and an assumed home tariff of Rs 8 per kWh (tariffs vary by state and slab), cost = 0.15 x 8 = Rs 1.2 per km, before charger losses. Compare with a petrol car at, for example, 15 km per litre and Rs 100 per litre: Rs 6.7 per km."}];
+const SEED = [{"topic": "s1", "level": 1, "stem": "In battery language, what does a C-rate of 2C on a 100 Ah cell describe?", "options": ["A current of 200 A, twice the cell's capacity in amperes", "A cell voltage of 2 V above nominal", "A charge that takes two hours to complete", "A capacity that has faded to twice its internal resistance"], "answer": 0, "why": "C-rate expresses current relative to capacity, so 2C on a 100 Ah cell is 200 A (1.2).", "concept": "C-rate definition"}, {"topic": "s1", "level": 2, "stem": "A carmaker moves a platform from 400 V to 800 V while delivering the same power. What happens in the cabling?", "options": ["Current halves and resistive heat loss falls to a quarter", "Current halves and heat loss halves with it", "Current doubles but the thicker cable absorbs the heat", "Current is unchanged; only charging speed improves"], "answer": 0, "why": "Heat loss scales with current squared, so halving current cuts loss to one quarter (1.1).", "concept": "Voltage and I squared R"}, {"topic": "s1", "level": 3, "stem": "A two-wheeler team is told to cut energy use in city riding. Which lever does the source point to first?", "options": ["Mass, because it dominates stop-start city driving", "Drag coefficient, because drag power rises with speed cubed", "Frontal area, because it sets aerodynamic loss at all speeds", "Gear ratio, because it fixes rolling resistance"], "answer": 0, "why": "Mass hurts far more in stop-start city driving than on the highway, and aerodynamics matters less at low 2W speeds (1.4).", "concept": "Road load priorities"}, {"topic": "s2", "level": 1, "stem": "Which architecture has a battery, no engine, and is recharged by plugging in?", "options": ["BEV, battery electric vehicle", "HEV, hybrid electric vehicle", "MHEV, mild hybrid electric vehicle", "FCEV, fuel cell electric vehicle"], "answer": 0, "why": "A BEV draws energy from the battery only and plugs in to recharge; HEVs and MHEVs do not plug in (2).", "concept": "Architecture families"}, {"topic": "s2", "level": 2, "stem": "What separates a series hybrid from a parallel hybrid?", "options": ["In a series hybrid the wheels are always driven by the motor; the engine only charges", "In a series hybrid the engine always drives the wheels directly", "A parallel hybrid cannot recharge its battery from braking", "A parallel hybrid uses a planetary gear set by definition"], "answer": 0, "why": "A series hybrid's engine only charges the battery while the motor always drives the wheels (2.1).", "concept": "Hybrid sub-types"}, {"topic": "s3", "level": 1, "stem": "What is the SEI in a lithium-ion cell?", "options": ["A film that forms on the anode, protecting it but thickening over life and consuming lithium", "A separator coating that blocks thermal runaway above 130 degrees Celsius", "The busbar interface between two series cell groups", "A sensor layer the BMS uses to read cell temperature"], "answer": 0, "why": "The solid electrolyte interphase protects the anode but thickens over life, consuming lithium and causing capacity fade (3.1).", "concept": "SEI and capacity fade"}, {"topic": "s3", "level": 2, "stem": "An Indian e-3W fleet operator runs high daily kilometres in hot conditions. Which chemistry does the source favour, and why?", "options": ["LFP, for safety, cost and cycle life", "NCA, for the highest energy per kilogram", "LTO, because cost is not a constraint in fleets", "Lead-acid, because it tolerates heat best"], "answer": 0, "why": "For India's heat, low-cost segments and high daily usage, LFP usually wins on safety, cost and life (3.2).", "concept": "Chemistry trade-off"}, {"topic": "s3", "level": 3, "stem": "A pack is specified as 16S with LFP cells. What nominal pack voltage should you expect?", "options": ["About 51 V", "About 58 V", "About 64 V", "About 350 V"], "answer": 0, "why": "LFP is about 3.2 V nominal, so 16 series groups give roughly 51 V, a common 2W and 3W pack (3.5).", "concept": "Series configuration"}, {"topic": "s3", "level": 4, "stem": "A cell in test reaches about 130 degrees Celsius. What is the next event in the thermal runaway sequence?", "options": ["The separator melts, creating an internal short circuit", "The SEI layer begins to break down and release heat", "The cathode breaks down and releases oxygen", "Flammable gas vents and the cell catches fire"], "answer": 0, "why": "SEI breakdown comes first at 80 to 120 C; separator melt and internal short follow at about 130 C, before cathode breakdown at 150 to 250 C (3.7).", "concept": "Runaway sequence"}, {"topic": "s3", "level": 3, "stem": "Why does a pack need a pre-charge circuit before the main contactor closes?", "options": ["The inverter's large capacitors would otherwise draw an inrush current that welds the contactors", "The BMS needs time to read every cell voltage before current flows", "The cells must be balanced before any load is applied", "The insulation monitor cannot run once the contactor is closed"], "answer": 0, "why": "A resistor path charges the inverter capacitors slowly so inrush current does not weld the contactors (3.5).", "concept": "Pre-charge circuit"}, {"topic": "s4", "level": 1, "stem": "What does the inverter do in a BEV powertrain?", "options": ["Converts battery DC into three-phase AC of the frequency and amplitude the motor needs", "Converts grid AC into DC for the battery", "Steps the high-voltage pack down to 12 V for lights and ECUs", "Balances cell voltages across the series groups"], "answer": 0, "why": "The inverter converts battery DC into variable three-phase AC for the traction motor; the OBC and DC-DC do the other jobs (4.5).", "concept": "Inverter function"}, {"topic": "s4", "level": 2, "stem": "Why are SiC MOSFETs described as essential for most 800 V systems?", "options": ["They offer lower losses and higher temperature capability than IGBTs", "They are cheaper than IGBTs at every voltage", "They remove the need for a DC link capacitor", "They allow the motor to run without a position sensor"], "answer": 0, "why": "Silicon carbide MOSFETs have lower losses and higher temperature capability, which is what 800 V systems need (4.5).", "concept": "Wide-bandgap switches"}, {"topic": "s4", "level": 3, "stem": "A supplier quotes a motor at 60 kW. What should you ask before accepting the number?", "options": ["Whether that is peak or continuous, and for how long at what temperature", "Whether it was measured with a resolver or Hall sensors", "Whether the rotor uses hairpin or round wire windings", "Whether the figure includes the gearbox reduction ratio"], "answer": 0, "why": "Peak power is allowed for seconds while continuous is what the motor can hold without overheating; marketing sheets often quote peak only (4.3).", "concept": "Peak versus continuous"}, {"topic": "s5", "level": 2, "stem": "Why is DC fast charging normally quoted as a 10 to 80 percent time?", "options": ["Above roughly 80 percent SOC the BMS cuts current sharply to protect the cells", "The charger cannot hold a constant voltage above 80 percent", "Most connectors overheat beyond 80 percent state of charge", "Billing meters stop recording above 80 percent"], "answer": 0, "why": "DC charging is fast to roughly 80 percent SOC, after which the BMS cuts current sharply (5.1).", "concept": "The charging curve"}, {"topic": "s5", "level": 1, "stem": "What does OCPP govern?", "options": ["How chargers talk to a back-end server for billing, monitoring and remote control", "How the vehicle and charger negotiate current over the control pilot", "How a pack is tested for thermal propagation", "How AC is converted to DC inside the onboard charger"], "answer": 0, "why": "Open Charge Point Protocol is the charger-to-back-end protocol; ISO 15118 covers car-to-charger communication (5.4).", "concept": "Charging protocols"}, {"topic": "s5", "level": 3, "stem": "A customer installs a 22 kW wallbox but their car charges at only 7.2 kW. What is the most likely cause?", "options": ["The vehicle's onboard charger is rated 7.2 kW, and it limits AC charging speed", "The wallbox is wired for DC fast charging, not AC", "The battery is above 80 percent state of charge", "The Type 2 connector cannot carry more than 7.2 kW"], "answer": 0, "why": "The onboard charger's rating limits AC charging speed no matter how large the wall charger is (4.7).", "concept": "Onboard charger limit"}, {"topic": "s6", "level": 3, "stem": "A pack runs 6 degrees Celsius hotter at its centre than at its edges. Why does the source treat that as a problem?", "options": ["Cells age at different rates and the pack is limited by its worst cell; target a spread under about 5 C", "Uneven temperature trips the HVIL and shuts down high voltage", "A spread above 5 C invalidates the IP67 rating", "The BMS cannot run coulomb counting with unequal temperatures"], "answer": 0, "why": "Uneven temperature makes cells age at different rates, and the pack is limited by its worst cell; the target spread is under about 5 C (6.1).", "concept": "Thermal uniformity"}, {"topic": "s6", "level": 2, "stem": "Which cooling method does the source associate with most cars, buses and premium two-wheelers?", "options": ["Indirect liquid cooling with water-glycol through cold plates", "Forced air pushed through the pack by fans", "Phase change material absorbing heat as it melts", "Immersion in a dielectric fluid"], "answer": 0, "why": "Indirect liquid cooling gives even temperatures and supports fast charging, at the cost of weight and leak risk (6.2).", "concept": "Cooling methods"}, {"topic": "s7", "level": 1, "stem": "When the driver presses the accelerator, what does the VCU do with the request?", "options": ["Picks the lowest of driver request, battery power limit, motor thermal limit and traction limit", "Passes it straight to the inverter as a current command", "Sends it to the BMS, which decides the final torque", "Splits it evenly between regen and friction braking"], "answer": 0, "why": "The VCU always picks the lowest of those four limits before issuing a torque command (7.2).", "concept": "Torque request flow"}, {"topic": "s7", "level": 2, "stem": "You are debugging a CAN bus and need to know what a message's bytes mean. Which artefact do you open?", "options": ["The DBC file, which defines each CAN message and signal", "The DVP&R, which lists the validation tests", "The DFMEA, which scores failure modes", "The PPAP file from the supplier"], "answer": 0, "why": "The DBC file is the dictionary defining what each CAN message and signal means (7.3).", "concept": "CAN tooling"}, {"topic": "s8", "level": 2, "stem": "What does a skateboard platform give a vehicle programme?", "options": ["A flat floor battery between the axles, a low centre of gravity and flexible body options", "A two-speed gearbox that improves both launch and top speed", "A lighter vehicle than an equivalent petrol car", "Freedom from crash protection requirements under the floor"], "answer": 0, "why": "The skateboard puts a flat battery in the floor between the axles, giving a low centre of gravity and flexible top-hat bodies (8.2).", "concept": "Platform architecture"}, {"topic": "s9", "level": 2, "stem": "What does PPAP confirm before production starts?", "options": ["That a supplier can make parts consistently", "That the vehicle has passed type approval", "That every requirement traces to a test", "That the pack meets its IP67 rating"], "answer": 0, "why": "The production part approval process confirms a supplier can make parts consistently before production starts (9.2).", "concept": "Production readiness"}, {"topic": "s9", "level": 3, "stem": "An end-of-line pack test finds a failure that the source names as a top cause of field problems. Which is it?", "options": ["Weld quality at the cell interconnects", "Incorrect cell chemistry in the bill of materials", "Software flashed to the wrong ECU", "An oversized DC link capacitor"], "answer": 0, "why": "Weld quality at cell joining is called out as a top cause of field failures (9.4).", "concept": "Pack manufacturing risk"}, {"topic": "s10", "level": 2, "stem": "Why are many Indian two-wheeler packs designed to sit just under 60 V?", "options": ["Above 60 V DC counts as high voltage and triggers extra protection rules", "Below 60 V the BMS is not required at all", "Charging connectors above 60 V are not sold in India", "AIS-156 does not apply to packs above 60 V"], "answer": 0, "why": "Up to 60 V DC counts as low voltage in most EV standards; above it, high-voltage protection rules apply (10.1).", "concept": "Voltage classes"}, {"topic": "s10", "level": 2, "stem": "Which requirement belongs to Phase 2 of India's 2022 battery safety amendments rather than Phase 1?", "options": ["At least four temperature sensors in the BMS", "Pack traceability", "An additional safety fuse", "Cell-to-cell spacing"], "answer": 0, "why": "Traceability, an extra fuse and cell spacing are Phase 1; four temperature sensors, EMC testing and thermal propagation testing are Phase 2 (10.3).", "concept": "AIS-156 phases"}, {"topic": "s10", "level": 3, "stem": "A technician is about to work on a high-voltage pack. What does the source require after removing the service disconnect?", "options": ["Verify zero voltage with a rated meter that has itself been tested first", "Close the contactors to discharge the DC link", "Remove insulated gloves so torque can be felt on the busbar bolts", "Start work immediately, since the MSD has split the pack voltage"], "answer": 0, "why": "The five steps are switch off, remove and secure the disconnect, verify zero voltage with a rated meter that is tested first, wait for capacitor discharge, then cover live parts (10.5).", "concept": "HV work procedure"}, {"topic": "s11", "level": 3, "stem": "A supplier claims 90 km of real-world range for an e-scooter with a 2 kWh pack. Does the claim survive a sanity check?", "options": ["No — at 25 to 40 Wh/km, 2 kWh supports roughly 50 to 80 km", "Yes — e-2W consumption is about 15 Wh/km", "Yes — real-world range usually exceeds the certified figure", "No — e-2W consumption is about 60 to 100 Wh/km, so the claim is far too high"], "answer": 0, "why": "At the rule of thumb of 25 to 40 Wh/km for an e-2W, 2 kWh gives roughly 50 to 80 km, so 90 km does not hold (11.1).", "concept": "Consumption rules of thumb"}, {"topic": "s11", "level": 4, "stem": "Field data shows early range loss and cell imbalance across a fleet. Which combination does the source point to?", "options": ["Poorly matched cells, weak balancing and heat gradients — fix with grading, better balancing and even cooling", "Loose busbars from wrong bolt torque — fix with torque-controlled tools", "Water ingress through a failed seal — fix with leak testing at end of line", "Gate driver design faults in the inverter — fix with snubbers and derating"], "answer": 0, "why": "Cell imbalance and early range loss trace to poorly matched cells, weak balancing and heat gradients (11.2).", "concept": "Failure mode diagnosis"}, {"topic": "s12", "level": 4, "stem": "A 30 kWh usable pack charges from 20 to 100 percent on a 7.2 kW onboard charger at 90 percent efficiency. Roughly how long?", "options": ["About 3.7 hours, so plan around 4 hours with the slower top-up", "About 3.3 hours, since efficiency applies only to DC charging", "About 4.6 hours, because only 5.2 kW reaches the battery", "About 2.7 hours, because 7.2 kW reaches the battery directly"], "answer": 0, "why": "24 kWh is needed and 6.5 kW reaches the battery, giving about 3.7 hours before the slower top-up phase (12.6).", "concept": "AC charging time"}, {"topic": "s12", "level": 4, "stem": "A motor delivers 200 Nm at 6,000 rpm. What is the shaft power?", "options": ["About 126 kW", "About 94 kW", "About 152 kW", "About 1,200 kW"], "answer": 0, "why": "Power in kW equals torque times rpm divided by 9,549, so 200 x 6,000 / 9,549 is about 126 kW (12.4).", "concept": "Torque, speed and power"}, {"topic": "s12", "level": 3, "stem": "For the worked highway case at 90 km/h, how does drag compare with rolling resistance?", "options": ["Drag is already about twice rolling resistance", "The two are roughly equal at that speed", "Rolling resistance is about twice drag", "Drag is negligible until about 120 km/h"], "answer": 0, "why": "Rolling force is 147 N against a drag force of 285 N, so drag is already about twice rolling resistance at 90 km/h (12.2).", "concept": "Road load balance"}];
+
+const TOTAL = 21;
+const LEVELS = [
+  {n:1, name:"Recall",   desc:"a single stated fact, definition, full form or figure taken straight from the source"},
+  {n:2, name:"Compare",  desc:"distinguish two concepts, or pick the characteristic that separates one option from its neighbours"},
+  {n:3, name:"Apply",    desc:"apply a stated rule, ratio or rule of thumb to a short concrete scenario"},
+  {n:4, name:"Analyse",  desc:"a two or three step calculation, or diagnose a likely root cause from described symptoms"},
+  {n:5, name:"Judge",    desc:"a design-review trade-off across subsystems or a compliance call under stated constraints, where more than one option is defensible but one is best supported by the source"}
+];
+const LS = "ev-drill-history-v1";
+
+let sample = null, samplePromise = null;
+const $ = s => document.querySelector(s);
+const app = $("#app");
+const esc = s => String(s).replace(/[&<>"]/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]));
+
+/* ---------------- adaptive engine ---------------- */
+function newRound(){
+  const order = shuffle(SECTIONS.map(s=>s.id));
+  const topics = [];
+  while(topics.length < TOTAL) topics.push(...shuffle(order.slice()));
+  return {
+    i:0, level:2, streak:0, probation:0, consecWrong:0,
+    peak:2, topics:topics.slice(0,TOTAL), log:[], asked:[],
+    started:Date.now(), prefetch:null, q:null, answered:null, err:null, loading:false
+  };
+}
+// 3 correct in a row promotes. A promotion opens a 3-question probation window:
+// a miss inside it reverts one level. Outside it, two misses in a row demote.
+function applyResult(R, correct){
+  const before = R.level;
+  let shift = null;
+  if(correct){
+    R.consecWrong = 0; R.streak++;
+    if(R.probation > 0) R.probation--;
+    if(R.streak >= 3 && R.level < 5){
+      R.level++; R.streak = 0; R.probation = 3;
+      shift = "promoted";
+    } else if(R.streak >= 3){ R.streak = 0; }
+  } else {
+    R.streak = 0; R.consecWrong++;
+    if(R.probation > 0){
+      if(R.level > 1) R.level--;
+      R.probation = 0; R.consecWrong = 0; shift = "reverted";
+    } else if(R.consecWrong >= 2){
+      if(R.level > 1){ R.level--; shift = "eased"; }
+      R.consecWrong = 0;
+    }
+  }
+  R.peak = Math.max(R.peak, R.level);
+  return {shift, before, after:R.level};
+}
+function shuffle(a){ for(let i=a.length-1;i>0;i--){const j=Math.floor(Math.random()*(i+1));[a[i],a[j]]=[a[j],a[i]];} return a; }
+
+/* ---------------- question supply ---------------- */
+function sectionById(id){ return SECTIONS.find(s=>s.id===id); }
+
+function buildPrompt(sec, level, avoid){
+  const L = LEVELS[level-1];
+  return [
+    "You are setting one multiple-choice practice question for an electric-vehicle engineering learner.",
+    "",
+    "SOURCE — the only permitted source of truth:",
+    "<<<", sec.text, ">>>",
+    "",
+    "Rules:",
+    "- The question and its correct answer must be verifiable from the SOURCE alone. Use no outside knowledge and invent no numbers.",
+    "- Difficulty level " + level + " of 5 (" + L.name + "): " + L.desc + ".",
+    "- Exactly four options. One unambiguously correct. Three distractors that a learner with a partial grasp would plausibly pick — never absurd, never joke answers.",
+    "- Keep the stem under 45 words. Keep each option under 18 words and of roughly similar length.",
+    "- Do not set a question whose stem repeats any of these: " + (avoid.length ? avoid.map(a=>'"'+a+'"').join("; ") : "(none yet)"),
+    "- \"concept\" names the specific idea tested, 2 to 4 words.",
+    "- \"why\" is one sentence under 30 words explaining the correct answer and citing the subsection number, e.g. \"(3.7)\".",
+    "",
+    'Reply with only this JSON: {"stem":"...","options":["...","...","...","..."],"answer":0,"why":"...","concept":"..."}'
+  ].join("\n");
+}
+function validQ(q){
+  return q && typeof q.stem === "string" && q.stem.trim().length > 8
+    && Array.isArray(q.options) && q.options.length === 4
+    && q.options.every(o => typeof o === "string" && o.trim().length > 0)
+    && Number.isInteger(q.answer) && q.answer >= 0 && q.answer < 4;
+}
+function randomiseOptions(q){
+  const idx = shuffle([0,1,2,3]);
+  const opts = idx.map(i => q.options[i]);
+  return Object.assign({}, q, {options:opts, answer:idx.indexOf(q.answer)});
+}
+async function generate(topicId, level, avoid){
+  const sec = sectionById(topicId);
+  if(!sample) return seedQuestion(topicId, level, avoid);
+  const raw = await sample.json(buildPrompt(sec, level, avoid), {
+    modelTier: level <= 2 ? "quick" : "default",
+    cache: false
+  });
+  if(!validQ(raw)) throw {code:"invalid_json", message:"malformed question"};
+  return randomiseOptions({
+    stem:String(raw.stem).trim(),
+    options:raw.options.map(o=>String(o).trim()),
+    answer:raw.answer,
+    why:String(raw.why || "").trim(),
+    concept:String(raw.concept || sec.title).trim(),
+    topic:topicId, level, source:"claude"
+  });
+}
+function seedQuestion(topicId, level, avoid){
+  const used = (R ? R.asked.map(a => a.stem) : []).concat(avoid);
+  let pool = SEED.filter(q => !used.includes(q.stem));
+  if(!pool.length) pool = SEED.slice();   // bank exhausted: allow repeats rather than stall
+  const exact = pool.filter(q => q.topic === topicId && q.level === level);
+  const sameTopic = pool.filter(q => q.topic === topicId);
+  const sameLevel = pool.filter(q => Math.abs(q.level - level) <= 1);
+  const pick = (exact[0] && shuffle(exact.slice())[0])
+    || (sameTopic[0] && shuffle(sameTopic.slice())[0])
+    || (sameLevel[0] && shuffle(sameLevel.slice())[0])
+    || shuffle(pool.slice())[0];
+  return randomiseOptions(Object.assign({}, pick, {source:"bank"}));
+}
+function avoidList(R, topicId){
+  return R.asked.filter(a => a.topic === topicId).slice(-6).map(a => a.stem);
+}
+function startPrefetch(R){
+  const nextIdx = R.i + 1;
+  if(nextIdx >= TOTAL) return;
+  const topic = R.topics[nextIdx], level = R.level;
+  const p = generate(topic, level, avoidList(R, topic)).catch(() => null);
+  R.prefetch = {topic, level, promise:p};
+}
+
+/* ---------------- render ---------------- */
+let R = null;
+
+function renderStart(){
+  $("#strip").hidden = true;
+  const hist = loadHistory();
+  const best = hist.length ? Math.max(...hist.map(h=>h.correct)) : null;
+  app.innerHTML = `
+  <div class="hero">
+    <div class="eyebrow">Adaptive practice · 21 questions</div>
+    <h1>EV Engineering Drill</h1>
+    <p class="lede">Twenty-one multiple-choice questions written live from your master content. Answer three in a row correctly and the next question steps up a level. Miss one and it steps back down. You cannot return to a question once answered.</p>
+  </div>
+
+  <div class="grid2">
+    <div class="card rulebox">
+      <h3>Difficulty ladder</h3>
+      <ul class="levels">
+        ${LEVELS.map(l=>`<li><span class="lv">L${l.n}</span><span><b style="font-weight:600">${l.name}</b> — ${esc(l.desc.split(",")[0])}</span></li>`).join("")}
+      </ul>
+    </div>
+    <div class="card rulebox">
+      <h3>How it adapts</h3>
+      <ol>
+        <li>You start at <b>L2</b>.</li>
+        <li>Three correct in a row promotes you one level.</li>
+        <li>A promotion opens a three-question probation. A miss inside it reverts you one level.</li>
+        <li>Outside probation, two misses in a row ease you back one level.</li>
+        <li>L1 is the floor, L5 the ceiling.</li>
+      </ol>
+    </div>
+  </div>
+
+  <div class="card srcwrap">
+    <h3 style="font-size:13px;letter-spacing:.06em;text-transform:uppercase;color:var(--muted);font-family:'IBM Plex Mono',monospace;font-weight:600;margin-bottom:4px">Master content in scope</h3>
+    <div class="note">EV Engineering Handbook: From First Principles to Shop-Floor Practice — ${SECTIONS.length} sections. Every question and its marked answer is drawn from one section only; nothing outside this text is used.</div>
+    <div class="srclist">${SECTIONS.map(s=>`<span class="srctag">${s.n}. ${esc(s.title.split(":")[0])}</span>`).join("")}</div>
+  </div>
+
+  <div class="startrow">
+    <button class="btn" id="go">Start round</button>
+    ${hist.length ? `<span class="note">${hist.length} previous round${hist.length>1?"s":""} · best ${best}/21</span>` : ``}
+  </div>
+  <p class="note" id="engnote" style="margin-top:14px">Checking question engine…</p>
+  ${hist.length ? `<div class="sec"><h2>Previous rounds</h2><div class="hist">${hist.slice().reverse().slice(0,8).map(h=>`
+    <div class="hrow"><span>${new Date(h.at).toLocaleDateString(undefined,{day:"2-digit",month:"short"})} ${new Date(h.at).toLocaleTimeString(undefined,{hour:"2-digit",minute:"2-digit"})}</span><span>${h.correct}/21 · peak L${h.peak}</span></div>`).join("")}</div></div>` : ``}
+  <footer>Questions are generated at the moment you reach them, so no two rounds are the same. Retake as often as you like.</footer>`;
+
+  $("#go").onclick = beginRound;
+  ensureSample().then(s => {
+    const n = $("#engnote");
+    if(!n) return;
+    n.textContent = s
+      ? "Question engine ready. The first question takes a few seconds to write."
+      : "Live generation is unavailable in this view, so the round runs from the built-in question bank instead.";
+  });
+}
+
+function ensureSample(){
+  if(samplePromise) return samplePromise;
+  samplePromise = (window.claude && window.claude.use ? window.claude.use("sample") : Promise.resolve(null))
+    .then(s => { sample = s; return s; })
+    .catch(() => { sample = null; return null; });
+  return samplePromise;
+}
+
+function beginRound(){
+  R = newRound();
+  $("#strip").hidden = false;
+  nextQuestion(true);
+}
+
+async function nextQuestion(first){
+  R.answered = null; R.err = null;
+  const topic = R.topics[R.i];
+  let q = null;
+
+  if(R.prefetch && R.prefetch.topic === topic && R.prefetch.level === R.level){
+    const pending = R.prefetch.promise; R.prefetch = null;
+    R.loading = true; paint();
+    q = await pending;
+  }
+  if(!q){
+    R.loading = true; paint();
+    try{
+      q = await generate(topic, R.level, avoidList(R, topic));
+    }catch(e){
+      R.err = errCopy(e);
+      if(e && (e.code === "not_granted" || e.code === "sampling_disabled" || e.code === "not_declared" || e.code === "capability_disabled")) sample = null;
+      q = seedQuestion(topic, R.level, avoidList(R, topic));
+    }
+  }
+  R.loading = false;
+  q.level = R.level;            // a bank substitute is answered at the level asked for
+  R.q = q;
+  R.asked.push({topic, stem:q.stem});
+  paint();
+  startPrefetch(R);
+}
+
+function errCopy(e){
+  const c = e && e.code;
+  if(c === "not_granted" || c === "sampling_disabled") return "This view is not allowed to write new questions, so the round continues from the built-in bank.";
+  if(c === "rate_limited") return "The question engine is busy. Pulling this one from the built-in bank.";
+  if(c === "invalid_json" || c === "empty_completion") return "That question came back malformed. Substituted one from the built-in bank.";
+  if(c === "session_expired") return "Your session expired. Sign in again to resume live questions.";
+  return "The question engine did not respond. Substituted one from the built-in bank.";
+}
+
+function paintStrip(){
+  $("#qnum").textContent = String(Math.min(R.i + 1, TOTAL)).padStart(2, "0");
+  const L = LEVELS[R.level - 1];
+  $("#lvlabel").textContent = "L" + R.level + " " + L.name;
+  $("#ladder").innerHTML = LEVELS.map(l =>
+    `<div class="rung ${l.n <= R.level ? "on" : ""} ${l.n === R.level ? "cur" : ""}"></div>`).join("");
+  $("#dots").innerHTML = [0,1,2].map(i => `<span class="dot ${i < R.streak ? "lit" : ""}"></span>`).join("");
+  $("#dots").title = R.streak + " correct in a row · 3 promotes";
+  $("#prog").style.width = ((R.i + (R.answered ? 1 : 0)) / TOTAL * 100) + "%";
+}
+
+function paint(){
+  paintStrip();
+  if(R.loading){
+    app.innerHTML = `<div class="qhead"><span class="chip"><span class="tick"></span>${esc(sectionById(R.topics[R.i]).title)}</span></div>
+      <div class="loading"><span class="pulse"></span>Writing a level ${R.level} question from section ${sectionById(R.topics[R.i]).n}…</div>`;
+    return;
+  }
+  const q = R.q, sec = sectionById(q.topic || R.topics[R.i]);
+  const a = R.answered;
+  app.innerHTML = `
+    <div class="qhead">
+      <span class="chip"><span class="tick"></span>${esc(sec.title)}</span>
+      <span class="chip" style="border-style:dashed">L${q.level || R.level} ${esc(LEVELS[(q.level || R.level) - 1].name)}</span>
+    </div>
+    <h2 class="qstem">${esc(q.stem)}</h2>
+    <div class="opts" id="opts">
+      ${q.options.map((o,i)=>{
+        let cls = "opt";
+        if(a){
+          if(i === q.answer) cls += " correct";
+          else if(i === a.choice) cls += " chosen-wrong";
+          else cls += " dim";
+        }
+        return `<button class="${cls}" data-i="${i}" ${a ? "disabled" : ""}>
+          <span class="key">${"ABCD"[i]}</span><span>${esc(o)}</span></button>`;
+      }).join("")}
+    </div>
+    ${R.err ? `<div class="err">${esc(R.err)}</div>` : ``}
+    ${a ? `
+      <div class="fb ${a.correct ? "good" : "bad"}">
+        <div class="verdict">${a.correct ? "Correct" : "Not quite"}</div>
+        <p>${esc(q.why || "")}</p>
+        ${a.shift ? `<div class="shift">${shiftCopy(a)}</div>` : ``}
+      </div>
+      <div class="nextrow"><button class="btn" id="next">${R.i + 1 >= TOTAL ? "See results" : "Next question"} →</button></div>` : ``}
+    ${!a ? `<p class="note" style="margin-top:18px">Press A–D or 1–4. Answers are final — you cannot come back to this question.</p>` : ``}`;
+
+  if(!a){
+    document.querySelectorAll(".opt").forEach(b => b.onclick = () => answer(+b.dataset.i));
+  } else {
+    const nb = $("#next");
+    nb.onclick = advance;
+    nb.focus();
+  }
+}
+function shiftCopy(a){
+  if(a.shift === "promoted") return "▲ Three in a row — stepping up to L" + a.after + " " + LEVELS[a.after-1].name + ", on probation for three questions.";
+  if(a.shift === "reverted") return "▼ Missed inside the probation window — back to L" + a.after + " " + LEVELS[a.after-1].name + ".";
+  if(a.shift === "eased")    return "▼ Second miss in a row — easing to L" + a.after + " " + LEVELS[a.after-1].name + ".";
+  return "";
+}
+
+function answer(choice){
+  if(R.answered) return;
+  const q = R.q;
+  const correct = choice === q.answer;
+  const levelAtAsk = R.level;
+  const res = applyResult(R, correct);
+  R.answered = {choice, correct, shift:res.shift, before:res.before, after:res.after};
+  R.log.push({
+    topic:q.topic || R.topics[R.i], concept:q.concept || "", level:levelAtAsk,
+    correct, stem:q.stem, source:q.source
+  });
+  paint();
+  // The next question's level is now known, so warm it up while the learner reads.
+  if(R.prefetch && R.prefetch.level !== R.level) R.prefetch = null;
+  if(!R.prefetch) startPrefetch(R);
+}
+
+function advance(){
+  R.i++;
+  if(R.i >= TOTAL){ finish(); return; }
+  nextQuestion();
+}
+
+/* ---------------- summary ---------------- */
+function finish(){
+  $("#strip").hidden = true;
+  const log = R.log;
+  const correct = log.filter(l => l.correct).length;
+  const mins = Math.max(1, Math.round((Date.now() - R.started) / 60000));
+
+  const byTopic = {};
+  log.forEach(l => {
+    const t = byTopic[l.topic] || (byTopic[l.topic] = {n:0, c:0, lv:0, missed:[]});
+    t.n++; t.lv += l.level;
+    if(l.correct) t.c++; else t.missed.push(l.concept || "");
+  });
+  const rows = Object.keys(byTopic).map(id => {
+    const t = byTopic[id], s = sectionById(id);
+    const missed = Array.from(new Set(t.missed.filter(Boolean)));
+    return {id, title:s.title, n:t.n, c:t.c, pct:t.c / t.n, avgLv:t.lv / t.n, missed, rated:t.n >= 2};
+  }).sort((a,b) => a.pct - b.pct || b.n - a.n);
+
+  const byLevel = LEVELS.map(l => {
+    const at = log.filter(x => x.level === l.n);
+    return {l, n:at.length, c:at.filter(x=>x.correct).length};
+  }).filter(r => r.n > 0);
+
+  const weak = rows.filter(r => r.rated && r.pct < 0.6);
+  const strong = rows.filter(r => r.rated && r.pct >= 0.8).slice().reverse();
+  const thin = rows.filter(r => !r.rated && r.pct < 1);
+  // Ceiling: the highest level where the learner answered more right than wrong.
+  const solid = byLevel.filter(r => r.c / r.n >= 0.6).map(r => r.l.n);
+  const ceiling = solid.length ? Math.max(...solid) : 1;
+
+  saveHistory({at:Date.now(), correct, peak:R.peak, ceiling, mins});
+  const hist = loadHistory();
+
+  const meterColor = p => p >= 0.8 ? "var(--ok)" : p < 0.6 ? "var(--bad)" : "var(--hv)";
+
+  app.innerHTML = `
+  <div class="sumhead">
+    <div class="eyebrow">Round complete</div>
+    <h1 style="font-size:clamp(27px,5.5vw,38px)">${correct} of 21 correct</h1>
+    <p class="lede" style="font-size:16px">${verdictLine(correct, ceiling, R.peak)}</p>
+  </div>
+
+  <div class="kpis">
+    <div class="card kpi"><div class="k">Score</div><div class="v">${correct}<span style="font-size:17px;color:var(--muted)">/21</span></div><div class="s">${Math.round(correct/21*100)}% correct</div></div>
+    <div class="card kpi"><div class="k">Peak level</div><div class="v">L${R.peak}</div><div class="s">${esc(LEVELS[R.peak-1].name)}</div></div>
+    <div class="card kpi"><div class="k">Held at</div><div class="v">L${ceiling}</div><div class="s">last level ≥60% right</div></div>
+    <div class="card kpi"><div class="k">Time</div><div class="v">${mins}<span style="font-size:17px;color:var(--muted)">m</span></div><div class="s">${Math.round(mins*60/21)}s per question</div></div>
+  </div>
+
+  <div class="sec">
+    <h2>Where you stand, by topic</h2>
+    <div class="card" style="padding:6px 18px">
+      ${rows.map(r => `
+        <div class="trow">
+          <div class="tname">${esc(r.title)}${!r.rated ? `` : r.pct >= 0.8 ? `<span class="tag s">strong</span>` : r.pct < 0.6 ? `<span class="tag w">weak</span>` : ``}
+            <i>${r.n} question${r.n>1?"s":""}${r.rated ? "" : ", too few to rate"} · avg L${r.avgLv.toFixed(1)}${r.missed.length ? " · missed: " + esc(r.missed.slice(0,2).join(", ")) : ""}</i></div>
+          <div class="meter"><i style="width:${Math.round(r.pct*100)}%;background:${meterColor(r.pct)}"></i></div>
+          <div class="tscore">${r.c}/${r.n}</div>
+        </div>`).join("")}
+    </div>
+  </div>
+
+  <div class="sec">
+    <h2>How you held up as it got harder</h2>
+    <div class="card" style="padding:4px 12px"><div class="tblwrap"><table class="lvtable">
+      <thead><tr><th>Level</th><th>What it asked for</th><th style="text-align:right">Asked</th><th style="text-align:right">Right</th></tr></thead>
+      <tbody>${byLevel.map(r => `<tr>
+        <td class="mono" style="color:var(--hv);font-weight:600">L${r.l.n}</td>
+        <td>${esc(r.l.name)}</td>
+        <td class="n">${r.n}</td>
+        <td class="n" style="color:${r.c/r.n>=0.6?"var(--ok)":"var(--bad)"}">${r.c}</td>
+      </tr>`).join("")}</tbody>
+    </table></div></div>
+  </div>
+
+  <div class="sec">
+    <h2>What to do before the next round</h2>
+    <ol class="plan">${buildPlan(weak, strong, byLevel, ceiling, thin).map(p => `<li>${p}</li>`).join("")}</ol>
+  </div>
+
+  ${hist.length > 1 ? `<div class="sec"><h2>Your rounds so far</h2><div class="card" style="padding:6px 18px"><div class="hist">
+    ${hist.slice().reverse().slice(0,10).map((h,i) => `<div class="hrow">
+      <span>${i===0?"▸ ":"&nbsp;&nbsp;"}${new Date(h.at).toLocaleDateString(undefined,{day:"2-digit",month:"short"})} ${new Date(h.at).toLocaleTimeString(undefined,{hour:"2-digit",minute:"2-digit"})}</span>
+      <span>${h.correct}/21 · peak L${h.peak}</span></div>`).join("")}
+  </div></div></div>` : ``}
+
+  <div class="endrow">
+    <button class="btn" id="again">Take another round</button>
+    <button class="btn ghost" id="home">Back to start</button>
+  </div>
+  <footer>Every round draws fresh questions, so a repeat is a new test rather than a memory check. Your scores stay in this browser only.</footer>`;
+
+  $("#again").onclick = () => { beginRound(); window.scrollTo(0,0); };
+  $("#home").onclick = () => { renderStart(); window.scrollTo(0,0); };
+  window.scrollTo(0,0);
+}
+
+function verdictLine(correct, ceiling, peak){
+  if(correct >= 17) return `You held level ${ceiling} work and reached L${peak}. The ladder ran out before you did — the gaps below are narrow ones.`;
+  if(correct >= 12) return `Solid through L${ceiling}. The round found the edge of your range at L${Math.min(5, ceiling+1)}, which is where the next study block belongs.`;
+  if(correct >= 7)  return `The foundations are uneven. Fix the weak topics below before pushing for higher levels.`;
+  return `Read the flagged sections before the next attempt. This round was mostly recall and comparison, so the gaps are in the base vocabulary.`;
+}
+function buildPlan(weak, strong, byLevel, ceiling, thin){
+  const out = [];
+  if(weak.length){
+    out.push(`Re-read <b>${weak.slice(0,2).map(w=>esc(w.title)).join("</b> and <b>")}</b> — you scored ${weak[0].c}/${weak[0].n} there${weak[0].missed.length ? `, missing ${esc(weak[0].missed.slice(0,2).join(" and "))}` : ""}.`);
+  } else {
+    out.push(`No topic fell below 60%. Push the difficulty instead: aim to hold <b>L${Math.min(5, ceiling+1)} ${esc(LEVELS[Math.min(4, ceiling)].name)}</b> next round.`);
+  }
+  const l4 = byLevel.find(r => r.l.n >= 4);
+  if(l4 && l4.c / l4.n < 0.6) out.push(`Your accuracy fell away at <b>L${l4.l.n} ${esc(l4.l.name)}</b> (${l4.c}/${l4.n}). Work the handbook's Section 12 calculations with a pen — that is what L4 questions are built from.`);
+  else if(!l4) out.push(`You did not reach L4 this round. Three correct in a row is all it takes — accuracy at L2 is the bottleneck, not difficulty.`);
+  if(weak.length > 2) out.push(`Leave <b>${esc(weak[2].title)}</b> for the round after. Two topics per study block beats five.`);
+  if(strong.length) out.push(`Keep <b>${strong.slice(0,2).map(s=>esc(s.title)).join("</b> and <b>")}</b> warm but do not re-study ${strong.length>1?"them":"it"} — you are already at ${Math.round(strong[0].pct*100)}%.`);
+  if(thin && thin.length) out.push(`<b>${esc(thin[0].title)}</b> came up only ${thin[0].n === 1 ? "once" : "twice"} and you missed it. One miss is not a verdict — retake and see whether it repeats.`);
+  out.push(`Retake now while the misses are fresh. The questions will be different.`);
+  return out.slice(0,5);
+}
+
+/* ---------------- history ---------------- */
+function loadHistory(){
+  try{ const r = localStorage.getItem(LS); return r ? JSON.parse(r) : []; }catch(e){ return []; }
+}
+function saveHistory(entry){
+  try{
+    const h = loadHistory(); h.push(entry);
+    localStorage.setItem(LS, JSON.stringify(h.slice(-40)));
+  }catch(e){}
+}
+
+/* ---------------- input ---------------- */
+document.addEventListener("keydown", e => {
+  if(!R || $("#strip").hidden) return;
+  const k = e.key.toUpperCase();
+  if(!R.answered && R.q && !R.loading){
+    const i = "ABCD".indexOf(k) > -1 ? "ABCD".indexOf(k) : (["1","2","3","4"].indexOf(k));
+    if(i > -1){ e.preventDefault(); answer(i); }
+  } else if(R.answered && (k === "ENTER" || k === " ")){
+    e.preventDefault(); advance();
+  }
+});
+document.addEventListener("click", e => {
+  if(e.target && e.target.id === "quit"){
+    if(R && R.log.length && confirm("End the round here? You will get a summary of the " + R.log.length + " question" + (R.log.length>1?"s":"") + " answered so far.")) finish();
+    else if(R && !R.log.length){ R = null; renderStart(); }
+  }
+});
+
+ensureSample();
+renderStart();
+</script>
